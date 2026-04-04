@@ -26,8 +26,13 @@ export const config = {
   ttsSpeed: parseInt(process.env.TTS_SPEED || '4', 10),
   
   // 会话配置
-  maxHistory: parseInt(process.env.MAX_HISTORY || '10', 10),
-  
+  maxHistory: parseInt(process.env.MAX_HISTORY || '100', 10),
+
+  // 定时任务配置 - 定时发送早安/午安/运势/晚安的群号列表（逗号分隔）
+  scheduleGroups: process.env.SCHEDULE_GROUPS
+    ? process.env.SCHEDULE_GROUPS.split(',').map(Number)
+    : [],
+
   // 日志
   logLevel: (process.env.LOG_LEVEL || 'info') as 'debug' | 'info' | 'warn' | 'error',
 } as const;
