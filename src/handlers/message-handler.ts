@@ -7,10 +7,11 @@ import { CodeBuddyClient } from '../services/codebuddy-client';
 import { SessionManager, type ChatMessage, type SessionMode } from '../services/session-manager';
 import { DivinationService } from '../services/divination-service';
 import { TTSService } from '../services/tts-service';
+import { SchedulerService } from '../services/scheduler-service';
 
 const logger = pino({ level: config.logLevel });
 
-/** \u6A21\u5F0F\u5207\u6362\u547D\u4EE4 */
+/** 模式切换命令 */
 const MODE_COMMANDS = {
   personal: ['\u79C1\u804A', '\u4E2A\u4EBA\u6A21\u5F0F', '\u79C1\u804A\u6A21\u5F0F'],
   group: ['\u7FA4\u804A', '\u7FA4\u6A21\u5F0F', '\u7FA4\u5171\u4EAB'],
@@ -18,10 +19,10 @@ const MODE_COMMANDS = {
 };
 
 /**
- * \u6D88\u606F\u5904\u7406\u5668
- * \u6838\u5FC3\u903B\u8F91:
- * - \u9ED8\u8BA4\u7FA4\u5171\u4EAB\u6A21\u5F0F: \u5168\u7FA4\u5171\u4EAB\u4E0A\u4E0B\u6587\uFF0C@机器人才回复
- * - \u79C1\u804A\u6A21\u5F0F: \u6BCF\u4EBA\u72EC\u7ACB\u5BF9\u8BDD
+ * 消息处理器
+ * 核心逻辑:
+ * - 默认群共享模式: 全群共享上下文, @机器人才回复
+ * - 私聊模式: 每人独立对话
  */
 export class MessageHandler {
   private onebot: OneBotClient;
@@ -29,6 +30,7 @@ export class MessageHandler {
   private sessionManager: SessionManager;
   private divination: DivinationService;
   private tts: TTSService;
+  private scheduler: SchedulerService | null = null;
   private processing = new Set<string>();
 
   constructor(
@@ -44,7 +46,14 @@ export class MessageHandler {
   }
 
   /**
-   * \u5904\u7406\u6536\u5230\u7684\u6D88\u606F
+   * 设置调度器 (用于注册活跃群号)
+   */
+  setScheduler(scheduler: SchedulerService): void {
+    this.scheduler = scheduler;
+  }
+
+  /**
+   * 处理收到的消息
    */
   async handle(msg: OneBotMessage): Promise<void> {
     logger.debug('[handle] \u6536\u5230\u6D88\u606F: post_type=' + msg.post_type + ', type=' + msg.message_type);
@@ -55,22 +64,27 @@ export class MessageHandler {
     }
 
     const groupMsg = msg as GroupMessage;
+
+    // ===== 注册活跃群 (让 AI 插聊知道往哪个群发) =====
+    if (this.scheduler) {
+      this.scheduler.registerActiveGroup(groupMsg.group_id);
+    }
     
     if (groupMsg.user_id === config.botQq) return;
 
     const text = extractTextContent(groupMsg);
     if (!text || !text.trim()) return;
 
-    // ====== \u5224\u65AD\u662F\u5426\u9700\u8981\u5904\u7406 ======
+    // ====== 判断是否需要处理 ======
     const atBot = isAtBot(groupMsg);
     const effectiveMode = this.sessionManager.getEffectiveMode(groupMsg.group_id);
 
-    // \u89C4\u5219:
+    // 规则:
     // 1. @了机器人 -> 处理（无论什么模式）
     // 2. 否则不处理（除非未来添加其他触发方式）
     if (!atBot) return;
 
-    // \u767D\u540D\u5355\u68C0\u67E5
+    // 白名单检查
     if (config.groupWhitelist.length > 0 && 
         !config.groupWhitelist.includes(groupMsg.group_id)) {
       return;
@@ -93,7 +107,7 @@ export class MessageHandler {
   }
 
   /**
-   * \u5904\u7406\u7FA4\u6D88\u606F\u6838\u5FC3\u903B\u8F91
+   * 处理群消息核心逻辑
    */
   private async processGroupMessage(
     groupMsg: GroupMessage,
@@ -111,21 +125,21 @@ export class MessageHandler {
       text.substring(0, 50)
     );
 
-    // ====== \u6A21\u5F0F\u5207\u6362\u547D\u4EE4 ======
+    // ====== 模式切换命令 ======
     const modeCmd = this.checkModeCommand(text);
     if (modeCmd) {
       await this.handleModeCommand(groupMsg, nickname, modeCmd, text);
       return;
     }
 
-    // ====== \u5360\u535C\u547D\u4EE4 ======
+    // ====== 占卜命令 ======
     const divCmd = this.divination.parseCommand(text);
     if (divCmd) {
       const result = this.divination.divine(divCmd.type);
       const reply = this.divination.formatResult(result);
       await this.sendReply(groupMsg, formatAtText(groupMsg.user_id, reply));
 
-      // \u5360\u535C\u7ED3\u679C\u4E5F\u4FDD\u5B58\u5230\u4F1A\u8BDD\uFF08\u8BA9AI\u77E5\u9053\u53D1\u751F\u4E86\u4EC0\u4E48\uFF09
+      // 占卜结果也保存到会话（让AI知道发生了什么）
       const userMessage = '[' + nickname + ']: ' + text;
       this.sessionManager.addMessage(
         groupMsg.group_id, groupMsg.user_id,
@@ -140,13 +154,13 @@ export class MessageHandler {
       return;
     }
 
-    // ====== \u6784\u5EFA\u5E26\u6635\u79F0\u7684\u7528\u6237\u6D88\u606F ======
+    // ====== 构建带昵称的用户消息 ======
     const userMessage =
       mode === 'group'
         ? '[' + nickname + ']: ' + text
         : text;
 
-    // \u83B7\u53D6\u5386\u53F2
+    // 获取历史
     const history = this.sessionManager.getHistory(
       groupMsg.group_id,
       groupMsg.user_id,
@@ -158,7 +172,7 @@ export class MessageHandler {
       isPersonalMode: mode === 'personal',
     });
 
-    // \u4FDD\u5B58\u5BF9\u8BDD\u5386\u53F2
+    // 保存对话历史
     this.sessionManager.addMessage(
       groupMsg.group_id, groupMsg.user_id,
       { role: 'user', content: userMessage },
@@ -170,7 +184,7 @@ export class MessageHandler {
       mode
     );
 
-    // \u6784\u5EFA\u56DE\u590D\u6D88\u606F
+    // 构建回复消息
     const replyWithAt = formatAtText(groupMsg.user_id, reply);
 
     // TTS语音
@@ -193,7 +207,7 @@ export class MessageHandler {
   }
 
   /**
-   * \u68C0\u67E5\u662F\u5426\u4E3A\u6A21\u5F0F\u5207\u6362\u547D\u4EE4
+   * 检查是否为模式切换命令
    */
   private checkModeCommand(text: string): string | null {
     const trimmed = text.trim().toLowerCase();
@@ -215,7 +229,7 @@ export class MessageHandler {
   }
 
   /**
-   * \u5904\u7406\u6A21\u5F0F\u5207\u6362\u547D\u4EE4
+   * 处理模式切换命令
    */
   private async handleModeCommand(
     groupMsg: GroupMessage,
@@ -246,7 +260,7 @@ export class MessageHandler {
             formatAtText(
               groupMsg.user_id,
               '\u597D\u54E7~\u5DF2\u5207\u6362\u5230\u79C1\u804A\u6A21\u5F0F\u5562!' +
-              ' \u73B0\u5728\u6BCF\u4E2A\u4eba\u7684\u5BF9\u8BDDClaw\u4F1A\u5206\u5F00\u8BB0\u4F4F\u55B5~' +
+              ' \u73B0\u5728\u6BCF\u4E2A\u4EBA\u7684\u5BF9\u8BDDClaw\u4F1A\u5206\u5F00\u8BB0\u4F4F\u55B5~' +
               ' \u56DE\u5230\u7FA4\u804A\u6A21\u5F0F\u8BF4"\u7FA4\u804A\u6A21\u5F0F"\u5C31\u53EF\u4EE5\u2728'
             )
           );
