@@ -4,6 +4,7 @@ import { OneBotClient } from './onebot-client';
 import { CodeBuddyClient } from './codebuddy-client';
 import { GreetingService } from './greeting-service';
 import { FolkDivinationService } from './folk-divination';
+import { SessionManager } from './session-manager';
 
 const logger = pino({ level: config.logLevel });
 
@@ -16,90 +17,44 @@ interface ScheduledTask {
 }
 
 /**
- * ===== AI 随机插聊参数 =====
+ * ===== AI 智能插聊参数 =====
  *
- * 设计目标：
- * - 间隔 3~6 分钟检查一次
- * - 只有群活跃时（最近3分钟有人说话）才发言
- * - 活跃时 80% 概率插话
+ * - 间隔: 3~6 分钟
+ * - 只在群活跃(最近3分钟有人说话)时才发言
+ * - 关键改进: 传入群聊上下文，让AI根据大家在聊什么来决定说什么
  */
-const CHATTER_MIN_INTERVAL = 180;   // 最快 3 分钟
-const CHATTER_MAX_INTERVAL = 360;   // 最慢 6 分钟
-const CHATTER_PROBABILITY = 80;     // 群活跃时 80% 概率发声
-
-/**
- * 群活跃度判定:
- * 最近 N 秒内有真人消息才算"活跃"
- */
-const ACTIVITY_WINDOW_SEC = 180;    // 3分钟窗口：最近3分钟有人说话 = 群活跃
-
-/** AI 提示词 - 让 AI 生成自然的插聊 */
-const CHATTER_PROMPTS: string[] = [
-  '\u4F60\u662F\u5728QQ\u7FA4\u91CC\u7684\u732B\u5A18Claw\u3002\u73B0\u5728\u5927\u5BB6\u5728\u804A\u5929\uFF0C\u4F60\u60F3\u63D2\u53E5\u8BDD\u3002' +
-  '\u8BF7\u751F\u6210\u4E00\u53E5\u77ED\u5C0F\u3001\u81EA\u7136\u3001\u50CF\u771F\u6B63\u7FA4\u53CB\u4E00\u6837\u7684\u63D2\u8BDD\u3002' +
-  '\u8981\u6C42:\uFF081\uFF09\u4E0D\u898130\u4EFB\u4F55\u4EBA\uFF0C\uFF082\uFF09\u4E0D\u8981\u63D0\u95EE\uFF0C\uFF083\uFF09\u4E0D\u8981\u592A\u957F\uFF08\u4E24\u53E5\u5185\uFF09' +
-  '\uFF084\uFF09\u4E0D\u8981\u8BF4"\u6211\u662FAI"/"\u6211\u662F\u673A\u5668\u4EBA"\uFF0C\uFF085\uFF09\u6BCF\u53E5\u52A0"\u55B5~"' +
-  '\u76F4\u63A5\u8F93\u51FA\u90A3\u53E5\u8BDD\uFF0C\u4E0D\u8981\u52A0\u5F15\u53F7\u6216\u89E3\u91CA\u3002',
-
-  '\u4F60\u662FClaw\uFF0C\u4E00\u53EA\u6D3B\u6CFE\u53EF\u7231\u7684\u732B\u5A18\u3002\u7FA4\u91CC\u5927\u5BB6\u5728\u70ED\u95F7\u804A\u5929\uFF0C' +
-  '\u4F60\u60F3\u8BF4\u70B9\u4EC0\u4E48\uFF1F \u8BF7\u751F\u6210\u4E00\u53E5\u77ED\u5C0F\u7684\u3001\u6709\u8DA3\u7684\u3001\u81EA\u7136\u7684\u8BD5\u63A2\u6027\u8BDD\u8BED\u3002' +
-  '\u4E0D\u8981@任何人, 不要提问, 两句以内, 结尾加"喵~". 直接输出内容。',
-
-  '\u4F60\u662FClaw\u732B\u5A18\uFF0CQQ\u7FA4\u91CC\u7684\u4E00\u5458\u3002\u73B0\u5728\u7FA4\u6C14\u6BD4\u8F83\u6D3B\u8DC3\uFF0C' +
-  '\u4F60\u60F3\u5206\u4EAB\u4E00\u4E2A\u5C0F\u60F3\u6CD5\u6216\u8005\u56DE\u5E94\u522B\u4EBA\u7684\u8BDD\u9898\u3002' +
-  '\u751F\u6210\u4E00\u53E5\u81EA\u7136\u7684\u3001\u77ED\u5C0F\u7684\uFF08\u4E0D\u898130\u4EBA\u4E0D\u63D0\u95EE\uFF09\u8BDD\u8BED\uFF0C\u52A0\u55B5~' +
-  '\u76F4\u63A5\u8F93\u51FA\u5185\u5BB9\u3002',
-
-  '\u4F60\u662FClaw\u732B\u5A18~ QQ\u7FA4\u91CC\u5927\u5BB6\u5728\u804A\u5929\uFF0C\u4F60\u7A81\u7136\u60F3\u5230\u4E86\u4EC0\u4E48\u6709\u8DA3\u7684\u4E8B\u3002' +
-  '\u8BF4\u4E00\u53E5\u5427\uFF01\u77ED\u5C0F\uFF0C\u81EA\u7136\uFF0C\u4E0D@人不提问\uFF0C\u52A0\u55B5~ \u76F4\u63A5\u8F93\u51FA\u3002',
-
-  '\u4F60\u662FClaw\u732B\u5A18\uFF0C\u4E00\u53EA\u5728QQ\u7FA4\u91CC\u7684\u8D85\u7EA7\u6D3B\u6CFE\u7684\u732B\u54AA\u3002' +
-  '\u73B0\u5728\u5927\u5BB6\u804A\u5F97\u6B63\u70ED\u70C8\uFF0C\u4F60\u4E5F\u60F3\u53C2\u4E0E\u8FDB\u6765\u3002' +
-  '\u8BF4\u4E00\u53E5\u5427\uFF01\u77ED\u5C0F\uFF0C\u6709\u8DAE\uFF0C\u50CF\u771F\u6B63\u7684\u7FA4\u53CB\u4E00\u6837\u3002' +
-  '\u4E0D@人, 不提问, 加"喵~", 直接说。',
-
-  '\u4F60\u662FClaw\u732B\u5A18~ \u7FA4\u91CC\u6709\u4EBA\u5728\u5206\u4EAB\u751F\u6D3B\uFF0C\u4F60\u60F3\u8868\u8FBE\u4E00\u4E0B\u611F\u89E9\u6216\u8005\u5171\u9E23\u3002' +
-  '\u4E00\u53E5\u8BDD\uFF0C\u81EA\u7136\u77ED\u5C0F\uFF0C\u52A0\u55B5~ \u76F4\u63A5\u8F93\u51FA\u3002',
-
-  'Claw\u732B\u5A18\u5728\u8FD9\u91CC~ \u542C\u5230\u5927\u5BB6\u804A\u5929\u89C9\u5F97\u5F88\u6709\u8DA3\uFF0C' +
-  '\u4F60\u60F3\u63D0\u4E00\u4E2A\u95EE\u9898\u6216\u8005\u5206\u4EAB\u4E00\u4E2A\u60F3\u6CD5\u3002' +
-  '\u77ED\u77ED\u4E00\u53E5\uFF0C\u52A0\u55B5~ \u4E0D@人, 直接输出。',
-];
+const CHATTER_MIN_INTERVAL = 180;
+const CHATTER_MAX_INTERVAL = 360;
+const CHATTER_PROBABILITY = 75;     // 群活跃时的触发概率
+const ACTIVITY_WINDOW_SEC = 180;    // 3分钟活跃窗口
 
 /**
  * 定时调度器 + AI智能插聊
  *
- * 功能:
- * 1. AI 随机插聊 (独立于 SCHEDULE_GROUPS 运行)
- *    - 间隔: 3~6 分钟
- *    - 只在群里有人在聊天时才插话 (最近3分钟有消息)
- *    - 群冷清时自动静默，不跳出来
- *
- * 2. 定时问候 (需要 SCHEDULE_GROUPS)
- *    - 08:00 早安  12:00 午安
- *    - 21:00 运势  00:00 晚安
+ * 改进:
+ * 1. AI插聊传入最近聊天记录 → 回复有上下文、自然
+ * 2. 定时问候对活跃群也生效（不再依赖 SCHEDULE_GROUPS）
+ * 3. 非@消息也会被记录到上下文
  */
 export class SchedulerService {
   private onebot: OneBotClient;
   private ai: CodeBuddyClient;
   private greeting: GreetingService;
   private folk: FolkDivinationService;
+  private sessionManager: SessionManager;
   private timer: ReturnType<typeof setInterval> | null = null;
   private lastExecutedDates: Map<string, string> = new Map();
 
   /** 下次可插聊时间 */
   private nextChatterTime = 0;
 
-  /** 正在进行中的插聊，防止并发 */
+  /** 正在进行中的插聊 */
   private chattering = false;
 
   /** 已知的群列表 */
   private activeGroups: Set<number> = new Set();
 
-  /**
-   * 群活跃记录: groupId => 最后一条消息的时间戳
-   * 用于判断"群里是否正在聊天"
-   */
+  /** 群活跃记录: groupId => 最后消息时间戳 */
   private groupLastActivity: Map<number, number> = new Map();
 
   constructor(onebot: OneBotClient, ai: CodeBuddyClient) {
@@ -107,61 +62,75 @@ export class SchedulerService {
     this.ai = ai;
     this.greeting = new GreetingService();
     this.folk = new FolkDivinationService();
+    this.sessionManager = new SessionManager();
   }
 
   /**
-   * 注册一个活跃群号 (供 MessageHandler 调用)
+   * 注册一个活跃群号 (每条群消息都调用)
    */
   registerActiveGroup(groupId: number): void {
     this.activeGroups.add(groupId);
-    // 同时更新该群的最后活跃时间
     this.groupLastActivity.set(groupId, Date.now());
   }
 
-  start(scheduleGroups: number[]): void {
-    const hasScheduleTasks = scheduleGroups && scheduleGroups.length > 0;
+  /**
+   * 获取最近N秒内有消息的活跃群
+   */
+  getActiveChatterGroups(): number[] {
+    const now = Date.now();
+    const windowMs = ACTIVITY_WINDOW_SEC * 1000;
+    const result: number[] = [];
+    for (const [gid, ts] of this.groupLastActivity) {
+      if (now - ts <= windowMs) result.push(gid);
+    }
+    return result;
+  }
 
-    const tasks: ScheduledTask[] = hasScheduleTasks ? [
+  start(scheduleGroups: number[]): void {
+    // 始终创建定时任务（即使 scheduleGroups 为空）
+    const broadcastGroups = (scheduleGroups && scheduleGroups.length > 0)
+      ? scheduleGroups
+      : undefined; // undefined 表示"对所有活跃群广播"
+
+    const tasks: ScheduledTask[] = [
       { name: 'morning', hour: 8, minute: 0,
-        handler: async () => this.broadcast(scheduleGroups, '\u65e9', () =>
-          this.greeting.getGreeting('morning')) },
+        handler: async () => this.broadcastToActiveGroups(
+          '\u65e9', () => this.greeting.getGreeting('morning')
+        ) },
       { name: 'noon', hour: 12, minute: 0,
-        handler: async () => this.broadcast(scheduleGroups, '\u5348', () =>
-          this.greeting.getGreeting('noon')) },
+        handler: async () => this.broadcastToActiveGroups(
+          '\u5348', () => this.greeting.getGreeting('noon')
+        ) },
       { name: 'fortune', hour: 21, minute: 0,
-        handler: async () => this.broadcast(scheduleGroups, '\u8fd0', () =>
-          '\u{1f4e9} **\u4eca\u65e5\u6c11\u4fd3\u8fd0\u52bf**\n\n' + this.folk.getShortFortune()) },
+        handler: async () => this.broadcastToActiveGroups(
+          '\u8fd0',
+          () => '\u{1f4e9} **\u4eca\u65e5\u6c11\u4fd3\u8fd0\u52bf**\n\n' + this.folk.getShortFortune()
+        ) },
       { name: 'night', hour: 0, minute: 0,
-        handler: async () => this.broadcast(scheduleGroups, '\u665a', () =>
-          this.greeting.getGreeting('night')) },
-    ] : [];
+        handler: async () => this.broadcastToActiveGroups(
+          '\u665a', () => this.greeting.getGreeting('night')
+        ) },
+    ];
 
     this.scheduleNextChatter();
 
     this.timer = setInterval(() => {
-      if (hasScheduleTasks) {
-        this.checkScheduledTasks(tasks);
-      }
+      this.checkScheduledTasks(tasks);
       this.checkRandomChatter();
     }, 1000);
 
-    if (hasScheduleTasks) {
-      logger.info(
-        `\u{1F553} \u5b9a\u65f6\u8c03\u5ea6\u5df2\u542f\u52a8: 08:00(\u65e0) 12:00(\u5348) 21:00(\u8fd0) 00:00(\u665a)` +
-        `\n   \u76ee\u6807\u7fa4: ${scheduleGroups.join(', ')}`
-      );
-    } else {
-      logger.info(
-        `\u{1F553} \u5b9a\u65f9\u4efb\u52a1\u672a\u914d\u7f6e(SCHEDULE_GROUPS\u4e3a\u7a7a), ` +
-        `\u53ea\u542f\u7528 AI \u63d2\u804a\u529f\u80fd`
-      );
-    }
-
     logger.info(
-      `\u{1f4ac} AI\u63d2\u804a\u5df2\u542f\u7528:` +
-      `\n   \u95f4\u9694: ${CHATTER_MIN_INTERVAL/60}-${CHATTER_MAX_INTERVAL/60}\u5206\u949f` +
-      `\n   \u6982\u7387: ${CHATTER_PROBABILITY}% (\u4ec5\u5728\u7fa4\u6d3b\u8dc3\u65f6)` +
-      `\n   \u6d3b\u8dc0\u7a97\u53e3: \u6700\u8fd1${ACTIVITY_WINDOW_SEC/60}\u5206\u949f\u6709\u4eba\u804a\u5929`
+      `\u{1F553} \u5b9a\u65f6\u8c03\u5ea6\u5df2\u542f\u52a8:` +
+      `\n   08:00 \u65e9\u5b89 | 12:00 \u5348\u5b89 | 21:00 \u8fd0\u52bf | 00:00 \u665a\u5b89` +
+      `\n   \u76ee\u6807: ${scheduleGroups.length > 0
+        ? '\u914d\u7f6e\u7fa4(' + scheduleGroups.join(',') + ')'
+        : '\u6240\u6709\u6d3b\u8dc0\u7fa4(\u81ea\u52a8)'}` +
+      `\n` +
+      `\n   \u{1f4ac} AI\u63d2\u804a:` +
+      `\n   \u95f4\u9694: ${CHATTER_MIN_INTERVAL/60}-${CHATTER_MAX_INTERVAL/60}\u5206` +
+      `\n   \u6982\u7387: ${CHATTER_PROBABILITY}% (\u7fa4\u6d3b\u8dc5\u65f6)` +
+      `\n   \u6d3b\u8dc0\u7a97\u53e3: ${ACTIVITY_WINDOW_SEC/60}\u5206\u949f` +
+      `\n   \u4e0a\u4e0b\u6587: \u263c \u4f20\u5165\u6700\u8fd1\u804a\u5929\u8bb0\u5f55`
     );
   }
 
@@ -169,7 +138,6 @@ export class SchedulerService {
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
-      logger.info('\u{1F553} \u5B9A\u65F6\u8C03\u5EA6\uDF50\u505C\u6B62');
     }
   }
 
@@ -190,13 +158,13 @@ export class SchedulerService {
         this.lastExecutedDates.set(execKey, dateKey);
 
         task.handler().catch(err => {
-          logger.error({ err, task: task.name }, '\u5B9A\u65F6\u4EFB\u52A1\u6267\u884C\u5931\u8D25');
+          logger.error({ err, task: task.name }, '\u5b9a\u65f6\u4efb\u52a1\u6267\u884c\u5931\u8d25');
         });
       }
     }
   }
 
-  // ===== AI 智能随机插聊 =====
+  // ===== AI 智能插聊 (核心: 传入上下文) =====
 
   private scheduleNextChatter(): void {
     const interval = CHATTER_MIN_INTERVAL +
@@ -205,25 +173,23 @@ export class SchedulerService {
   }
 
   /**
-   * 检查是否该插聊了
+   * AI 插聊 - 带上下文版本
    *
-   * 核心逻辑:
-   * 1. 时间到了吗?
-   * 2. 有活跃的群吗?
-   * 3. **群活跃吗?** (最近3分钟有人说话) ← 关键！
-   * 4. 概率判定
+   * 核心改进:
+   * - 不再用固定提示词模板
+   * - 而是获取该群的最近聊天记录作为上下文传给AI
+   * - AI根据"大家正在聊什么"决定是否+如何参与
    */
   private async checkRandomChatter(): Promise<void> {
     if (Date.now() < this.nextChatterTime) return;
     if (this.chattering) return;
 
     const h = new Date().getHours();
-    if (h < 7 || h >= 24) return; // 太早/太晚不打扰
+    if (h < 7 || h >= 24) return;
 
-    // 找出当前活跃的群 (最近 N 秒内有人说话的群)
-    const activeChatterGroups = this.getActiveChatterGroups();
-    if (activeChatterGroups.length === 0) {
-      // 没有任何群在活跃聊天 → 不插话，重新安排下次
+    // 找出当前活跃的群
+    const activeGroups = this.getActiveChatterGroups();
+    if (activeGroups.length === 0) {
       this.scheduleNextChatter();
       return;
     }
@@ -234,34 +200,62 @@ export class SchedulerService {
       return;
     }
 
-    // 标记中
     this.chattering = true;
 
     try {
-      // 随机选一个提示词
-      const prompt = CHATTER_PROMPTS[
-        Math.floor(Math.random() * CHATTER_PROMPTS.length)
+      // 随机选一个活跃群
+      const targetGroup = activeGroups[
+        Math.floor(Math.random() * activeGroups.length)
       ];
 
-      // 调用 AI 生成插聊内容
-      const msg = await this.ai.chat(prompt, [], {
+      // 获取该群的最近聊天记录作为上下文
+      const history = this.sessionManager.getHistory(targetGroup, 0, 'group');
+
+      // 构建带上下文的提示词
+      const contextSummary = history.slice(-15).map(msg =>
+        msg.role === 'user'
+          ? msg.content
+          : '[Claw]: ' + msg.content
+      ).join('\n');
+
+      const prompt =
+        '[\u7fa4\u804a\u53c2\u4e0e]\n' +
+        '\u4f60\u662f\u5728QQ\u7fa4\u91cc\u7684\u732b\u5a18Claw\uff0c\u5927\u5bb6\u6b63\u5728\u70ed\u70c8\u804a\u5929\u3002\n' +
+        '\u4ee5\u4e0b\u662f\u6700\u8fd1\u7684\u804a\u5929\u8bb0\u5f55:\n\n' +
+        contextSummary +
+        '\n\n---\n' +
+        '\u6839\u636e\u4e0a\u9762\u7684\u804a\u5929\u5185\u5bb9\uff0c\u4f60\u89c9\u5f97\u81ea\u5df1\u6709\u4ec0\u4e48\u503c\u5f97\u8bf4\u7684\u5417\uff1f\n' +
+        '\u82e5\u6709\uff0c\u5c31\u81ea\u7136\u5730\u63d2\u4e00\u53e5\uff0c\u50cf\u771f\u6b63\u7684\u7fa4\u53cb\u4e00\u6837\u53c2\u4e0e\u3002\n' +
+        '\u82e5\u6ca1\u6709\uff0c\u56de\u590d\u201c\u201d\u3002\n' +
+        '\u8981\u6c42: \u4e0d@任何人, \u4e0d\u63d0\u95ee, \u4e24\u53e5\u5185, \u52a0\u55b5~';
+
+      // 调用 AI (带上下文历史)
+      const msg = await this.ai.chat(prompt, history.slice(-10), {
         isPersonalMode: false,
       });
 
-      if (!msg || !msg.trim()) {
+      if (!msg || !msg.trim() || msg.trim().length < 3) {
         this.scheduleNextChatter();
         return;
       }
 
-      // 从活跃群中随机选一个发
-      const targetGroup = activeChatterGroups[
-        Math.floor(Math.random() * activeChatterGroups.length)
-      ];
-
       await this.onebot.sendGroupMsg(targetGroup, msg.trim());
+
       logger.info(
-        `\u{1f4ac} [AI\u63d2\u804a] -> \u7fa4${targetGroup}: ` +
+        `\u{1f4ac} [AI\u63d2\u804a|\u6709\u4e0a\u4e0b\u6587] -> \u7fa4${targetGroup}: ` +
         msg.trim().substring(0, 50).replace(/\n/g, '\\')
+      );
+
+      // 保存插话记录到会话
+      this.sessionManager.addMessage(
+        targetGroup, 0,
+        { role: 'user', content: '[\u7cfb\u7edf]\u63d0\u793aAI\u63d2\u8bdd' },
+        'group'
+      );
+      this.sessionManager.addMessage(
+        targetGroup, 0,
+        { role: 'assistant', content: '[Claw\u4e3b\u52a8]: ' + msg.trim() },
+        'group'
       );
     } catch (err) {
       logger.error({ err }, 'AI\u63d2\u804a\u751f\u6210\u5931\u8d25');
@@ -272,52 +266,37 @@ export class SchedulerService {
   }
 
   /**
-   * 获取当前正在活跃聊天的群列表
-   * 判断标准: 最近 ACTIVITY_WINDOW_SEC 秒内有真人消息
+   * 广播到所有活跃的群 (解决定时任务不触发的问题)
    */
-  private getActiveChatterGroups(): number[] {
-    const now = Date.now();
-    const windowMs = ACTIVITY_WINDOW_SEC * 1000;
-    const result: number[] = [];
-
-    for (const [groupId, lastActivityTime] of this.groupLastActivity) {
-      if (now - lastActivityTime <= windowMs) {
-        result.push(groupId);
-      }
-    }
-
-    return result;
-  }
-
-  /**
-   * 获取所有已知群 (用于定时广播等)
-   */
-  private getAvailableGroups(): number[] {
-    if (config.scheduleGroups && config.scheduleGroups.length > 0) {
-      return config.scheduleGroups;
-    }
-    return Array.from(this.activeGroups);
-  }
-
-  /**
-   * 广播消息
-   */
-  private async broadcast(
-    groups: number[],
+  private async broadcastToActiveGroups(
     type: string,
     getMessage: () => string
   ): Promise<void> {
     const message = getMessage();
 
-    for (const groupId of groups) {
+    // 确定目标群列表
+    let targetGroups: number[];
+    if (config.scheduleGroups && config.scheduleGroups.length > 0) {
+      targetGroups = config.scheduleGroups;
+    } else {
+      // 没有配置时，广播到所有已知活跃群
+      targetGroups = Array.from(this.activeGroups);
+    }
+
+    if (targetGroups.length === 0) {
+      logger.debug(`[\u5b9a\u65f6${type}] \u65e0\u53ef\u7528\u7fa4\uff0c\u8df3\u7565`);
+      return;
+    }
+
+    for (const groupId of targetGroups) {
       try {
         await this.onebot.sendGroupMsg(groupId, message);
         logger.info(
           `\u{1f4ac} [\u5b9a\u65f6}${type}] -> ${groupId}: ` +
-          message.substring(0, 40).replace(/\n/g, ' ') + '...'
+          message.substring(0, 40).replace(/\n/g, ' ')
         );
       } catch (err) {
-        logger.error({ err, groupId }, `\u5e7f\u64ad${type}\u6d88\u606f\u5931\u8d25`);
+        logger.error({ err, groupId }, `\u5e7f\u64ad${type}\u5931\u8d25`);
       }
     }
   }

@@ -19,10 +19,19 @@ const MODE_COMMANDS = {
 };
 
 /**
+ * 非@消息的随机回复概率 (15%)
+ * 这样机器人会偶尔主动参与聊天，但不会刷屏
+ */
+const PASSIVE_REPLY_PROBABILITY = 15;
+
+/**
  * 消息处理器
- * 核心逻辑:
- * - 默认群共享模式: 全群共享上下文, @机器人才回复
- * - 私聊模式: 每人独立对话
+ *
+ * 核心改动:
+ * 1. 所有群消息(无论是否@)都记录到上下文 → AI知道大家说了什么
+ * 2. @机器人 → 必定回复 + 用AI生成有上下文的回复
+ * 3. 非@消息 → 记录上下文 + 小概率(15%)主动插话
+ * 4. 插聊时传入最近聊天记录 → 回复自然、有针对性
  */
 export class MessageHandler {
   private onebot: OneBotClient;
@@ -45,9 +54,6 @@ export class MessageHandler {
     this.tts = new TTSService();
   }
 
-  /**
-   * 设置调度器 (用于注册活跃群号)
-   */
   setScheduler(scheduler: SchedulerService): void {
     this.scheduler = scheduler;
   }
@@ -56,96 +62,103 @@ export class MessageHandler {
    * 处理收到的消息
    */
   async handle(msg: OneBotMessage): Promise<void> {
-    logger.debug('[handle] \u6536\u5230\u6D88\u606F: post_type=' + msg.post_type + ', type=' + msg.message_type);
-    
-    if (msg.message_type !== 'group') {
-      logger.debug('[handle] \u5FFD\u7565\u975E\u7FA4\u6D88\u606F');
-      return;
-    }
+    if (msg.message_type !== 'group') return;
 
     const groupMsg = msg as GroupMessage;
 
-    // ===== 注册活跃群 (让 AI 插聊知道往哪个群发) =====
+    // 注册活跃群
     if (this.scheduler) {
       this.scheduler.registerActiveGroup(groupMsg.group_id);
     }
-    
+
     if (groupMsg.user_id === config.botQq) return;
 
     const text = extractTextContent(groupMsg);
     if (!text || !text.trim()) return;
 
-    // ====== 判断是否需要处理 ======
     const atBot = isAtBot(groupMsg);
     const effectiveMode = this.sessionManager.getEffectiveMode(groupMsg.group_id);
 
-    // 规则:
-    // 1. @了机器人 -> 处理（无论什么模式）
-    // 2. 否则不处理（除非未来添加其他触发方式）
-    if (!atBot) return;
-
     // 白名单检查
-    if (config.groupWhitelist.length > 0 && 
+    if (config.groupWhitelist.length > 0 &&
         !config.groupWhitelist.includes(groupMsg.group_id)) {
       return;
     }
 
-    const msgKey = `${groupMsg.group_id}:${groupMsg.message_id}`;
-    if (this.processing.has(msgKey)) return;
-    this.processing.add(msgKey);
+    // ===== 核心改动：所有消息都记录到群上下文 =====
+    const senderCard = (groupMsg as any).sender?.card || '';
+    const nickname = groupMsg.sender.nickname || senderCard || `\u7528${groupMsg.user_id}`;
+    const userMessage =
+      effectiveMode === 'group'
+        ? '[' + nickname + ']: ' + text
+        : text;
 
-    try {
-      await this.processGroupMessage(groupMsg, text, effectiveMode);
-    } catch (error) {
-      logger.error({ error, groupId: groupMsg.group_id }, '\u5904\u7406\u6D88\u606F\u5931\u8D25');
+    // 先保存用户消息到上下文（无论是否@）
+    this.sessionManager.addMessage(
+      groupMsg.group_id, groupMsg.user_id,
+      { role: 'user', content: userMessage },
+      effectiveMode
+    );
+
+    // ===== 分支处理 =====
+    if (atBot) {
+      // @了机器人 → 必定回复
+      const msgKey = `${groupMsg.group_id}:${groupMsg.message_id}`;
+      if (this.processing.has(msgKey)) return;
+      this.processing.add(msgKey);
+
       try {
-        await this.sendReply(groupMsg, formatAtText(groupMsg.user_id, '\u62B1\u6B49\u54DF~\u5904\u7406\u6D88\u606F\u65F6\u51FA\u9519\u4E86\uFF0C\u8BD5\u8BD5\u91CD\u65B0\u53D1\u9001\u55B5~'));
-      } catch {}
-    } finally {
-      this.processing.delete(msgKey);
+        await this.processAtMessage(groupMsg, text, userMessage, effectiveMode, nickname);
+      } catch (error) {
+        logger.error({ error, groupId: groupMsg.group_id }, '\u5904\u7406@\u6D88\u606F\u5931\u8D25');
+        try {
+          await this.sendReply(groupMsg,
+            formatAtText(groupMsg.user_id, '\u62B1\u6B49\u54DF~\u51FA\u9519\u4E86\uFF0C\u91CD\u8BD5\u55B5~'));
+        } catch {}
+      } finally {
+        this.processing.delete(msgKey);
+      }
+    } else {
+      // 没@机器人 → 小概率主动插话（用AI，带上下文）
+      if (Math.random() * 100 < PASSIVE_REPLY_PROBABILITY) {
+        // 防止太频繁，用message_id做简单去重即可
+        try {
+          await this.processPassiveMessage(groupMsg, text, effectiveMode, nickname);
+        } catch (error) {
+          logger.error({ error }, '\u88AB\u52A8\u63D2\u8bdd\u5931\u8D25(\u5DF2\u9758\u9ED8\u5FFD\u8BA4)');
+        }
+      }
     }
   }
 
   /**
-   * 处理群消息核心逻辑
+   * 处理 @机器人的消息 → 必定回复
    */
-  private async processGroupMessage(
+  private async processAtMessage(
     groupMsg: GroupMessage,
-    text: string,
-    mode: SessionMode
+    rawText: string,
+    userMessage: string,
+    mode: SessionMode,
+    nickname: string
   ): Promise<void> {
-    const senderCard = (groupMsg as any).sender?.card || '';
-    const nickname = groupMsg.sender.nickname || senderCard || `\u7528${groupMsg.user_id}`;
-
     logger.info(
-      '\uD83D\uDCE9 [' +
-      (mode === 'group' ? '\u7FA4\u5171\u4EAB' : '\u79C1\u804A') +
-      ' \u7FA4' + groupMsg.group_id + '] ' +
-      nickname + '(' + groupMsg.user_id + '): ' +
-      text.substring(0, 50)
+      '\uD83D\uDCE9 [@\u56DE\u590D] \u7FA4' + groupMsg.group_id +
+      ' ' + nickname + ': ' + rawText.substring(0, 50)
     );
 
-    // ====== 模式切换命令 ======
-    const modeCmd = this.checkModeCommand(text);
+    // 模式切换命令
+    const modeCmd = this.checkModeCommand(rawText);
     if (modeCmd) {
-      await this.handleModeCommand(groupMsg, nickname, modeCmd, text);
+      await this.handleModeCommand(groupMsg, nickname, modeCmd, rawText);
       return;
     }
 
-    // ====== 占卜命令 ======
-    const divCmd = this.divination.parseCommand(text);
+    // 占卜命令
+    const divCmd = this.divination.parseCommand(rawText);
     if (divCmd) {
       const result = this.divination.divine(divCmd.type);
       const reply = this.divination.formatResult(result);
       await this.sendReply(groupMsg, formatAtText(groupMsg.user_id, reply));
-
-      // 占卜结果也保存到会话（让AI知道发生了什么）
-      const userMessage = '[' + nickname + ']: ' + text;
-      this.sessionManager.addMessage(
-        groupMsg.group_id, groupMsg.user_id,
-        { role: 'user', content: userMessage },
-        mode
-      );
       this.sessionManager.addMessage(
         groupMsg.group_id, groupMsg.user_id,
         { role: 'assistant', content: reply },
@@ -154,40 +167,25 @@ export class MessageHandler {
       return;
     }
 
-    // ====== 构建带昵称的用户消息 ======
-    const userMessage =
-      mode === 'group'
-        ? '[' + nickname + ']: ' + text
-        : text;
-
-    // 获取历史
+    // 获取历史 + AI回复
     const history = this.sessionManager.getHistory(
-      groupMsg.group_id,
-      groupMsg.user_id,
-      mode
+      groupMsg.group_id, groupMsg.user_id, mode
     );
 
-    // AI调用
     const reply = await this.codebuddy.chat(userMessage, history, {
       isPersonalMode: mode === 'personal',
     });
 
-    // 保存对话历史
-    this.sessionManager.addMessage(
-      groupMsg.group_id, groupMsg.user_id,
-      { role: 'user', content: userMessage },
-      mode
-    );
+    // 保存回复
     this.sessionManager.addMessage(
       groupMsg.group_id, groupMsg.user_id,
       { role: 'assistant', content: reply },
       mode
     );
 
-    // 构建回复消息
     const replyWithAt = formatAtText(groupMsg.user_id, reply);
 
-    // TTS语音
+    // TTS
     if (this.tts.isEnabled()) {
       const audioBuffer = await this.tts.textToSpeech(reply);
       if (audioBuffer && audioBuffer.length > 1024) {
@@ -195,15 +193,74 @@ export class MessageHandler {
         const recordCq = formatRecord(base64Audio);
         try {
           await this.onebot.sendGroupRecord(groupMsg.group_id, recordCq);
-          await this.onebot.sendGroupMsg(groupMsg.group_id, '[\u6587\u5B57\u7248] ' + replyWithAt);
+          await this.onebot.sendGroupMsg(groupMsg.group_id, '[\u6587\u5B57] ' + replyWithAt);
           return;
         } catch (e) {
-          logger.warn({ error: e }, '\u8BED\u97F3\u53D1\u9001\u5931\u8D25');
+          logger.warn({ error: e }, 'TTS\u53d1\u9001\u5931\u8d25');
         }
       }
     }
 
     await this.sendReply(groupMsg, replyWithAt);
+  }
+
+  /**
+   * 处理非@消息 → 小概率主动参与对话
+   *
+   * 关键改进:
+   * - 传入最近N条聊天记录作为上下文
+   * - AI可以根据大家在聊什么来决定说什么
+   * - 不是固定模板，而是真正"听懂了"再说话
+   */
+  private async processPassiveMessage(
+    groupMsg: GroupMessage,
+    rawText: string,
+    mode: SessionMode,
+    nickname: string
+  ): Promise<void> {
+    logger.info(
+      '\uD83D\uDCE8 [\u88ab\u52A8\u63d2\u8bdd] \u7fa4' + groupMsg.group_id +
+      ' ' + nickname + ': ' + rawText.substring(0, 30)
+    );
+
+    // 获取最近的聊天记录作为上下文
+    const history = this.sessionManager.getHistory(
+      groupMsg.group_id, groupMsg.user_id, mode
+    );
+
+    // 构建提示词：告诉AI当前群聊上下文，让它决定是否+如何参与
+    const contextPrompt =
+      '[\u7fa4\u804a\u4e0a\u4e0b\u6587]\n' +
+      '\u4f60\u662f\u5728QQ\u7fa4\u91cc\u7684\u732b\u5a18Claw\u3002' +
+      '\u4ee5\u4e0b\u662f\u8fd1\u671f\u7684\u804a\u5929\u8bb0\u5f55\uff0c\u4f60\u53ef\u4ee5\u770b\u5230\u5927\u5bb6\u5728\u804a\u4ec0\u4e48\u3002' +
+      '\u5982\u679c\u4f60\u89c9\u5f97\u81ea\u5df1\u6709\u8bdd\u53ef\u4ee5\u8bf4\uff0c\u5c31\u81ea\u7136\u5730\u63d2\u4e00\u53e5\u3002' +
+      '\u5982\u679c\u4e0d\u60f3\u8bf4\uff0c\u56de\u590d\u201c\u201d\u5373\u53ef\u3002' +
+      '\u8981\u6c42:\u4e0d@\u4eba, \u4e0d\u63d0\u95ee, \u4e24\u53e5\u5185, \u52a0\u55b5~';
+
+    // 把上下文prompt当作用户消息发给AI
+    const reply = await this.codebuddy.chat(contextPrompt, history.slice(-20), {
+      isPersonalMode: false,
+    });
+
+    if (!reply || !reply.trim() || reply.trim().length < 3) {
+      logger.debug('[\u88ab\u52a8] AI\u9009\u62e9\u4e0d\u8bf4\u8bdd');
+      return;
+    }
+
+    // 只发送文字，不@任何人（因为是主动插聊）
+    await this.sendReply(groupMsg, reply.trim());
+
+    // 保存到上下文
+    this.sessionManager.addMessage(
+      groupMsg.group_id, groupMsg.user_id,
+      { role: 'assistant', content: '[Claw\u4e3b\u52a8\u63d2\u8bdd]: ' + reply.trim() },
+      mode
+    );
+
+    logger.info(
+      '\uD83D\uDCE8 [\u88ab\u52a8\u56de\u590d] -> \u7fa4' + groupMsg.group_id +
+      ': ' + reply.trim().substring(0, 40)
+    );
   }
 
   /**
@@ -214,7 +271,6 @@ export class MessageHandler {
 
     for (const [cmdType, keywords] of Object.entries(MODE_COMMANDS)) {
       for (const kw of keywords) {
-        // 匹配 "切换到xxx" 或直接 "xxx"
         if (
           trimmed === kw ||
           trimmed.includes('\u5207\u6362' + kw) ||
@@ -244,25 +300,15 @@ export class MessageHandler {
         if (this.sessionManager.isPersonalMode(groupId)) {
           await this.sendReply(
             groupMsg,
-            formatAtText(
-              groupMsg.user_id,
-              '\u73B0\u5728\u5DF2\u7ECF\u662F\u79C1\u804A\u6A21\u5F0F\u5566~ \u6BCF\u4EBA\u7684\u5BF9\u8BDD\u72EC\u7ACB\uFF01\u55B5~'
-            )
+            formatAtText(groupMsg.user_id,
+              '\u73B0\u5728\u5DF2\u7ECF\u662F\u79C1\u804A\u6A21\u5F0F\u556A~ \u55B5~')
           );
         } else {
           this.sessionManager.togglePersonalMode(groupId, true);
-          logger.info(
-            '\u{1F4AC} [\u7FA4' + groupId + '] ' + nickname +
-            ' \u5207\u6362\u5230\u79C1\u804A\u6A21\u5F0F'
-          );
           await this.sendReply(
             groupMsg,
-            formatAtText(
-              groupMsg.user_id,
-              '\u597D\u54E7~\u5DF2\u5207\u6362\u5230\u79C1\u804A\u6A21\u5F0F\u5562!' +
-              ' \u73B0\u5728\u6BCF\u4E2A\u4EBA\u7684\u5BF9\u8BDDClaw\u4F1A\u5206\u5F00\u8BB0\u4F4F\u55B5~' +
-              ' \u56DE\u5230\u7FA4\u804A\u6A21\u5F0F\u8BF4"\u7FA4\u804A\u6A21\u5F0F"\u5C31\u53EF\u4EE5\u2728'
-            )
+            formatAtText(groupMsg.user_id,
+              '\u5207\u6362\u5230\u79C1\u804A\u6A21\u5F0F\u5562! \u6BCF\u4EBA\u72EC\u7ACB\u5BF9\u8BDD\u55B5~')
           );
         }
         break;
@@ -271,44 +317,28 @@ export class MessageHandler {
         if (!this.sessionManager.isPersonalMode(groupId)) {
           await this.sendReply(
             groupMsg,
-            formatAtText(
-              groupMsg.user_id,
-              '\u73B0\u5728\u5DF2\u7ECF\u662F\u7FA4\u5171\u4EAB\u6A21\u5F0F\u5566~ \u5927\u5BB6\u7684\u5BF9\u8BDD\u90FD\u5728\u4E00\u8D77\uFF01\u55B5~'
-            )
+            formatAtText(groupMsg.user_id,
+              '\u5DF2\u7ECF\u662F\u7FA4\u5171\u4EAB\u6A21\u5F0F\u556A~ \u55B5~')
           );
         } else {
           this.sessionManager.togglePersonalMode(groupId, false);
-          logger.info(
-            '\u{1F4AC} [\u7FA4' + groupId + '] ' + nickname +
-            ' \u5207\u6362\u56DE\u7FA4\u5171\u4EAB\u6A21\u5F0F'
-          );
           await this.sendReply(
             groupMsg,
-            formatAtText(
-              groupMsg.user_id,
-              '\u597D\u54E7~\u5DF2\u5207\u6362\u56DE\u7FA4\u5171\u4EAB\u6A21\u5F0F\u5562!' +
-              ' \u73B0\u5728\u6240\u6709\u4EBA\u7684\u5BF9\u8BDD\u90FD\u5728\u540C\u4E00\u4E2A\u4E0A\u4E0B\u6587\u4E2D\uFF0CClaw\u4F1A\u8BB0\u4F4F\u6BCF\u4E2A\u4EBA\u8BF4\u4EC0\u4E48\u55B5~' +
-              ' \u2728'
-            )
+            formatAtText(groupMsg.user_id,
+              '\u5207\u6362\u56DE\u7FA4\u5171\u4EAB\u6A21\u5F0F\u5562! \u5927\u5BB6\u7684\u8BD5\u55B5~ \u2728')
           );
         }
         break;
 
       case 'clear':
         this.sessionManager.clearSession(
-          groupId,
-          groupMsg.user_id,
+          groupId, groupMsg.user_id,
           this.sessionManager.getEffectiveMode(groupId)
-        );
-        logger.info(
-          '\u{1F5D1} [\u7FA4' + groupId + '] ' + nickname + ' \u6E05\u7A7A\u4E86\u5BF9\u8BDD'
         );
         await this.sendReply(
           groupMsg,
-          formatAtText(
-            groupMsg.user_id,
-            '\u597D\u54E7~\u5BF9\u8BDD\u5DF2\u7ECF\u6E05\u7A7A\u5562! \u91CD\u65B0\u5F00\u59CB\u5427\u55B5~ \u2705'
-          )
+          formatAtText(groupMsg.user_id,
+            '\u5BF9\u8BDD\u5DF2\u7ECF\u6E05\u7A7A\u5562! \u55B5~ \u2705')
         );
         break;
     }
