@@ -14,6 +14,7 @@ import { DashboardService } from '../services/dashboard-service';
 import { VisionService } from '../services/vision-service';
 import { BlockService } from '../services/block-service';
 import { hasImage, extractImageCq } from '../types/onebot';
+import type { PluginManager } from '../plugins/plugin-manager';
 
 
 
@@ -51,6 +52,7 @@ export class MessageHandler {
   private astrbotRelay: AstrbotRelayService | null = null;
   private dashboard: DashboardService | null = null;
   private blockService: BlockService | null = null;
+  private pluginManager: PluginManager | null = null;
   private vision: VisionService = new VisionService();
   private processing = new Set<string>();
   
@@ -95,6 +97,10 @@ export class MessageHandler {
   /** 设置屏蔽服务引用 */
   setBlockService(blockService: BlockService): void {
     this.blockService = blockService;
+  }
+
+  setPluginManager(pluginManager: PluginManager): void {
+    this.pluginManager = pluginManager;
   }
 
   /**
@@ -178,6 +184,19 @@ export class MessageHandler {
         !config.groupWhitelist.includes(groupMsg.group_id)) {
       return;
     }
+
+    await this.pluginManager?.onMessage({
+      message: msg,
+      groupMessage: groupMsg,
+      groupId: groupMsg.group_id,
+      userId: groupMsg.user_id,
+      nickname,
+      rawText: text,
+      finalText,
+      isAtBot: atBot,
+      mode: effectiveMode,
+      timestamp: Date.now(),
+    });
 
     // ===== /Astrbot 命令处理（优先级最高）=====
     if (atBot && this.astrbotRelay?.isAstrbotCommand(finalText)) {
@@ -342,16 +361,46 @@ export class MessageHandler {
       return;
     }
 
+    const pluginCommand = await this.pluginManager?.handleCommand({
+      groupId: groupMsg.group_id,
+      userId: groupMsg.user_id,
+      nickname,
+      rawText,
+      normalizedText: rawText.trim().toLowerCase(),
+      isAdmin: ['owner', 'admin'].includes(groupMsg.sender?.role || ''),
+    });
+    if (pluginCommand?.handled) {
+      if (pluginCommand.reply) {
+        await this.sendReply(groupMsg, formatAtText(groupMsg.user_id, pluginCommand.reply));
+        this.sessionManager.addMessage(
+          groupMsg.group_id, groupMsg.user_id,
+          { role: 'assistant', content: pluginCommand.reply },
+          mode
+        );
+      }
+      return;
+    }
+
     // 获取历史 + AI回复
     logger.debug('[@流程] 1/4 获取历史消息...');
     const history = this.sessionManager.getHistory(
       groupMsg.group_id, groupMsg.user_id, mode
     );
+    const systemPrefix = await this.pluginManager?.buildSystemPrefix({
+      groupId: groupMsg.group_id,
+      userId: groupMsg.user_id,
+      nickname,
+      rawText,
+      userMessage,
+      history,
+      mode,
+    });
 
     logger.debug('[@流程] 2/4 调用AI生成回复...');
     this.dashboard?.recordAiCall();
     const reply = await this.codebuddy.chat(userMessage, history, {
       isPersonalMode: mode === 'personal',
+      systemPrefix,
     });
     logger.debug(`[@流程] 2/4 AI返回完成, 长度: ${reply.length}`);
 
@@ -424,6 +473,15 @@ export class MessageHandler {
     const history = this.sessionManager.getHistory(
       groupMsg.group_id, groupMsg.user_id, mode
     );
+    const systemPrefix = await this.pluginManager?.buildSystemPrefix({
+      groupId: groupMsg.group_id,
+      userId: groupMsg.user_id,
+      nickname,
+      rawText,
+      userMessage: rawText,
+      history,
+      mode,
+    });
 
     // 构建提示词：告诉AI当前群聊上下文，让它决定是否+如何参与
     const contextPrompt =
@@ -437,6 +495,7 @@ export class MessageHandler {
     // 把上下文prompt当作用户消息发给AI
     const reply = await this.codebuddy.chat(contextPrompt, history.slice(-20), {
       isPersonalMode: false,
+      systemPrefix,
     });
 
     if (!reply || !reply.trim() || reply.trim().length < 3) {

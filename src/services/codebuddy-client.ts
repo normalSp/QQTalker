@@ -81,7 +81,7 @@ export class CodeBuddyClient {
   async chat(
     userMessage: string,
     history?: ChatMessage[],
-    options?: { stream?: boolean; systemPrefix?: string; isPersonalMode?: boolean }
+    options?: { stream?: boolean; systemPrefix?: string; isPersonalMode?: boolean; model?: string }
   ): Promise<string> {
     // \u6784\u9020 system prompt
     let systemContent = SYSTEM_PROMPT;
@@ -110,7 +110,7 @@ export class CodeBuddyClient {
 
     try {
       const completion = await this.client.chat.completions.create({
-        model: config.aiModel,
+        model: options?.model || config.aiModel,
         messages,
         temperature: 0.7,
         max_tokens: 2000,

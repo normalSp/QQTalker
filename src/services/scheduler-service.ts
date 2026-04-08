@@ -68,12 +68,12 @@ export class SchedulerService {
   /** Dashboard 引用（用于活跃群统计） */
   private dashboard: DashboardService | null = null;
 
-  constructor(onebot: OneBotClient, ai: CodeBuddyClient) {
+  constructor(onebot: OneBotClient, ai: CodeBuddyClient, sessionManager: SessionManager) {
     this.onebot = onebot;
     this.ai = ai;
     this.greeting = new GreetingService();
     this.folk = new FolkDivinationService();
-    this.sessionManager = new SessionManager();
+    this.sessionManager = sessionManager;
   }
 
   /**

@@ -1,6 +1,6 @@
 # QQTalker - QQ聊天机器人
 
-将你的QQ号变成一只可爱的**猫娘AI机器人（Claw）**，支持群聊共享上下文、语音回复、语音识别、图片识别、占卜等功能。
+将你的QQ号变成一只可爱的**猫娘AI机器人（Claw）**，支持群聊共享上下文、语音回复、语音识别、图片识别、占卜，以及可插拔的**自学习插件系统**。
 
 ## 功能特点
 
@@ -13,6 +13,10 @@
 - **🔮 占卜功能**: 观音灵签、塔罗牌、今日运势、随机占卜、民俗黄历
 - **👋 入群欢迎**: 新成员入群时自动发送个性化欢迎语
 - **📡 Astrbot 转发**: 可将消息转发给其他 AI 机器人（如 Astrbot），实现多 AI 协作
+- **🧩 插件运行时**: 支持内置插件和外部插件接入，开放消息钩子、Prompt 注入、命令与 Dashboard API 扩展
+- **🧠 自学习插件**: 学习对话风格、群组黑话、22 类社交关系、好感度、情绪、38 类目标场景和长期记忆
+- **📈 高级学习分析**: 轻量话题聚类、场景分布、记忆图谱摘要、批量学习运行记录
+- **📝 人格审查流**: 自动生成建议人格片段，支持在控制台审批后注入回复上下文
 - **📊 Dashboard 控制台**: 内置 Web 控制台，实时查看运行状态和统计
 - **@触发**: 群内 @机器人 即可触发回复
 - **被动插聊**: 机器人会偶尔主动参与群聊（15%概率，带上下文理解）
@@ -49,6 +53,8 @@ http://localhost:3180
 - **📊 仪表盘**：实时显示运行状态、消息统计、系统资源
 - **📜 活动日志**：查看实时日志流，支持搜索和筛选
 - **📈 数据分析**：图表展示消息趋势、AI调用统计等
+- **🧠 自学习中心**：可视化管理风格、黑话、关系图谱、记忆、场景分布、聚类结果与人格审查
+- **🧰 学习数据治理**：支持导出/导入学习数据、清理单群记录、重建分析快照、调整自动学习策略
 - **🔧 配置管理**：在线修改配置，支持热重载
 - **💻 进程信息**：查看系统资源占用和运行状态
 - **📊 智能日志分析器**：访问 `http://localhost:3180/analyzer` 查看专业日志分析
@@ -127,6 +133,18 @@ start-with-console-fixed.bat
 | 发送语音 | 自动 STT 识别为文字后处理（需开启 STT） |
 | 新人入群 | 自动发送欢迎语 |
 
+### 自学习命令
+
+| 命令 | 说明 |
+|------|------|
+| `@Claw /learning_status` | 查看自学习统计与运行状态 |
+| `@Claw /start_learning` | 开启自动学习 |
+| `@Claw /stop_learning` | 暂停自动学习 |
+| `@Claw /force_learning` | 立即执行一次学习并生成人格审查建议 |
+| `@Claw /affection_status` | 查看当前群好感度排行 |
+| `@Claw /set_mood <情绪>` | 手动设置当前群情绪 |
+| `@Claw /scene_status` | 查看当前群主要对话场景分布 |
+
 ---
 
 ## 安装配置
@@ -182,6 +200,26 @@ ASTRBOT_QQ=                  # 目标 Astrbot QQ 号（不配置则禁用）
 
 # ===== 日志 =====
 LOG_LEVEL=info               # debug/info/warn/error
+
+# ===== 自学习插件 =====
+SELF_LEARNING_ENABLED=true
+SELF_LEARNING_DATA_DIR=./data/self-learning
+SELF_LEARNING_TARGETS=
+SELF_LEARNING_BLACKLIST=
+SELF_LEARNING_INTERVAL_HOURS=6
+SELF_LEARNING_MIN_MESSAGES=30
+SELF_LEARNING_MAX_BATCH=200
+SELF_LEARNING_ENABLE_ML=true
+SELF_LEARNING_MAX_ML_SAMPLE=120
+SELF_LEARNING_TOTAL_AFFECTION_CAP=250
+SELF_LEARNING_MAX_USER_AFFECTION=100
+SELF_LEARNING_DB_TYPE=sqlite
+SELF_LEARNING_DB_FILE=./data/self-learning/self-learning.sqlite
+SELF_LEARNING_MYSQL_URL=
+SELF_LEARNING_POSTGRES_URL=
+
+# ===== 外部插件（可选）=====
+PLUGIN_PATHS=plugins/example-echo-plugin.cjs
 ```
 
 ### 3. 启动 OneBot 实现
@@ -204,6 +242,16 @@ npm run build && npm start
 
 启动成功后访问 **http://localhost:3180** 查看 Dashboard 控制台。
 
+### 5. 测试
+
+```bash
+# 单元 / 集成测试
+npm test
+
+# 前端 E2E（基于 Playwright mock dashboard）
+npm run test:e2e
+```
+
 ---
 
 ## 项目结构
@@ -212,6 +260,8 @@ npm run build && npm start
 src/
 ├── index.ts                 # 主入口
 ├── logger.ts                # 日志配置
+├── plugins/                 # 插件运行时与内置自学习插件
+├── storage/                 # SQLite/MySQL/PostgreSQL 适配层
 ├── types/
 │   ├── config.ts            # 配置类型和验证
 │   └── onebot.ts            # OneBot协议类型定义 + 工具函数
@@ -293,6 +343,34 @@ src/
 
 ---
 
+## 插件开发
+
+可通过 `PLUGIN_PATHS` 加载 CommonJS 插件，仓库内提供了示例文件 `plugins/example-echo-plugin.cjs`。插件可扩展：
+
+- 消息捕获
+- Prompt 上下文注入
+- 群命令处理
+- Dashboard API 路由
+
+## 自学习高级能力
+
+- 默认使用 `SQL.js` 文件型 SQLite，无需本地 C++ 编译链即可运行。
+- 可切换 `SELF_LEARNING_DB_TYPE=mysql|postgres`，并使用 `SELF_LEARNING_MYSQL_URL` / `SELF_LEARNING_POSTGRES_URL` 接入外部数据库。
+- 高级学习周期会生成：
+  - 用户风格画像
+  - 群内黑话候选
+  - 22 类社交关系推断
+  - 38 类对话场景分布
+  - 轻量话题聚类
+  - 记忆图谱摘要
+  - 人格演化建议与审批记录
+- Dashboard 自学习中心新增：
+  - 导出 / 导入学习数据（UTF-8 JSON，兼容 Windows 直接查看）
+  - 单群学习记录清理
+  - 分析快照重建
+  - 自动学习运行态开关与定时策略面板
+  - 关键前端流程 E2E：立即学习、群切换、人格审批
+
 ## License
 
-MIT
+GPL-3.0-only

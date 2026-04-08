@@ -9,6 +9,8 @@ import { DashboardService } from './services/dashboard-service';
 import { BlockService } from './services/block-service';
 import { WelcomeService } from './services/welcome-service';
 import { setupConsoleAndAnalyzer, setupGlobalShortcuts } from './start-with-console';
+import { PluginManager } from './plugins/plugin-manager';
+import { SelfLearningPlugin } from './plugins/self-learning/self-learning-plugin';
 
 
 
@@ -34,6 +36,7 @@ async function main(): Promise<void> {
   const sessionManager = new SessionManager();
   const blockService = new BlockService();
   const dashboard = new DashboardService();
+  const pluginManager = new PluginManager();
   dashboard.setOneBotClient(onebotClient);
   dashboard.setBlockService(blockService);
 
@@ -47,6 +50,20 @@ async function main(): Promise<void> {
   // 将 dashboard 注入 handler 用于统计埋点
   handler.setDashboard(dashboard);
   handler.setBlockService(blockService);
+  handler.setPluginManager(pluginManager);
+
+  if (config.selfLearning.enabled) {
+    pluginManager.register(new SelfLearningPlugin());
+  }
+  await pluginManager.loadExternalPlugins();
+  await pluginManager.initialize({
+    onebot: onebotClient,
+    aiClient: codebuddyClient,
+    sessions: sessionManager,
+    dashboard,
+    dataDir: process.cwd(),
+  });
+  dashboard.registerRoutes(pluginManager.getDashboardRoutes());
 
   // 注册消息监听
   onebotClient.onMessage(msg => {
@@ -84,7 +101,7 @@ async function main(): Promise<void> {
     logger.info('✅ QQTalker 启动成功！正在监听消息...');
 
     // 始终启动调度器 (AI插聊不依赖 SCHEDULE_GROUPS)
-    const scheduler = new SchedulerService(onebotClient, codebuddyClient);
+    const scheduler = new SchedulerService(onebotClient, codebuddyClient, sessionManager);
     
     // 把 scheduler 传给 handler，让 handler 收集活跃群号
     handler.setScheduler(scheduler);
@@ -102,19 +119,21 @@ async function main(): Promise<void> {
   }
 
   // 优雅关闭
-  process.on('SIGINT', () => shutdown(onebotClient, sessionManager, dashboard, blockService));
-  process.on('SIGTERM', () => shutdown(onebotClient, sessionManager, dashboard, blockService));
+  process.on('SIGINT', () => void shutdown(onebotClient, sessionManager, dashboard, blockService, pluginManager));
+  process.on('SIGTERM', () => void shutdown(onebotClient, sessionManager, dashboard, blockService, pluginManager));
 }
 
-function shutdown(
+async function shutdown(
   onebot: OneBotClient,
   sessions: SessionManager,
   dashboard?: DashboardService,
-  blockService?: BlockService
-): void {
+  blockService?: BlockService,
+  pluginManager?: PluginManager,
+): Promise<void> {
   logger.info('🛑 正在关闭...');
   dashboard?.stop();
   blockService?.destroy();
+  await pluginManager?.dispose();
   onebot.disconnect();
   sessions.destroy();
   process.exit(0);

@@ -7,6 +7,7 @@ import { logger } from '../logger';
 import { config } from '../types/config';
 import type { OneBotClient } from './onebot-client';
 import type { BlockService } from './block-service';
+import type { DashboardRouteProvider, DashboardRouteResult } from '../plugins/plugin-types';
 
 /** SSE 事件类型 */
 interface SseEvent {
@@ -72,6 +73,7 @@ export class DashboardService {
 
   // 屏蔽服务引用
   private blockService: BlockService | null = null;
+  private customRoutes: DashboardRouteProvider[] = [];
 
   constructor(port: number = 3180) {
     this.port = port;
@@ -98,6 +100,10 @@ export class DashboardService {
   /** 注入屏蔽服务 */
   setBlockService(blockService: BlockService): void {
     this.blockService = blockService;
+  }
+
+  registerRoutes(routes: DashboardRouteProvider[]): void {
+    this.customRoutes.push(...routes);
   }
 
   /** 更新连接状态 */
@@ -362,8 +368,39 @@ export class DashboardService {
       }
     }
 
+    const customRoute = this.customRoutes.find(route => route.method === httpReq.method && route.path === urlPath);
+    if (customRoute) {
+      this.handleCustomRoute(customRoute, httpReq, httpRes, urlObj);
+      return;
+    }
+
     httpRes.writeHead(404);
     httpRes.end(JSON.stringify({ error: 'Not Found' }));
+  }
+
+  private async handleCustomRoute(
+    route: DashboardRouteProvider,
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    url: URL,
+  ): Promise<void> {
+    try {
+      const result = await route.handler({ req, res, url });
+      if (res.writableEnded) return;
+      const response = result as DashboardRouteResult | void;
+      res.writeHead(response?.status || 200, {
+        'Content-Type': response?.contentType || 'application/json; charset=utf-8',
+      });
+      if ((response?.contentType || '').startsWith('text/')) {
+        res.end(String(response?.data ?? ''));
+      } else {
+        res.end(JSON.stringify(response?.data ?? { success: true }));
+      }
+    } catch (err: any) {
+      if (res.writableEnded) return;
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
   }
 
   /**
@@ -1031,6 +1068,21 @@ export class DashboardService {
       groupWhitelist: config.groupWhitelist,
       astrbotQq: config.astrbotQq,
       logLevel: config.logLevel,
+      selfLearningEnabled: config.selfLearning.enabled,
+      selfLearningDataDir: config.selfLearning.dataDir,
+      selfLearningTargets: config.selfLearning.targetQqList,
+      selfLearningBlacklist: config.selfLearning.targetBlacklist,
+      selfLearningMinMessages: config.selfLearning.minMessagesForLearning,
+      selfLearningMaxBatch: config.selfLearning.maxMessagesPerBatch,
+      selfLearningIntervalHours: config.selfLearning.learningIntervalHours,
+      selfLearningEnableMl: config.selfLearning.enableMlAnalysis,
+      selfLearningMaxMlSample: config.selfLearning.maxMlSampleSize,
+      selfLearningTotalAffectionCap: config.selfLearning.totalAffectionCap,
+      selfLearningMaxUserAffection: config.selfLearning.maxUserAffection,
+      selfLearningDbType: config.selfLearning.dbType,
+      selfLearningDbFile: config.selfLearning.dbFile,
+      selfLearningMysqlUrl: config.selfLearning.mysqlUrl,
+      selfLearningPostgresUrl: config.selfLearning.postgresUrl,
     };
   }
 

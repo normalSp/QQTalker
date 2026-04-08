@@ -46,6 +46,36 @@ export const config = {
 
   // 日志
   logLevel: (process.env.LOG_LEVEL || 'info') as 'debug' | 'info' | 'warn' | 'error',
+
+  // 插件
+  pluginPaths: process.env.PLUGIN_PATHS
+    ? process.env.PLUGIN_PATHS.split(',').map(item => item.trim()).filter(Boolean)
+    : [],
+
+  selfLearning: {
+    enabled: process.env.SELF_LEARNING_ENABLED !== 'false',
+    dataDir: process.env.SELF_LEARNING_DATA_DIR || './data/self-learning',
+    targetQqList: process.env.SELF_LEARNING_TARGETS
+      ? process.env.SELF_LEARNING_TARGETS.split(',').map(item => item.trim()).filter(Boolean)
+      : [],
+    targetBlacklist: process.env.SELF_LEARNING_BLACKLIST
+      ? process.env.SELF_LEARNING_BLACKLIST.split(',').map(item => item.trim()).filter(Boolean)
+      : [],
+    minMessagesForLearning: parseInt(process.env.SELF_LEARNING_MIN_MESSAGES || '30', 10),
+    maxMessagesPerBatch: parseInt(process.env.SELF_LEARNING_MAX_BATCH || '200', 10),
+    learningIntervalHours: parseInt(process.env.SELF_LEARNING_INTERVAL_HOURS || '6', 10),
+    messageMinLength: parseInt(process.env.SELF_LEARNING_MESSAGE_MIN || '2', 10),
+    messageMaxLength: parseInt(process.env.SELF_LEARNING_MESSAGE_MAX || '500', 10),
+    defaultMood: process.env.SELF_LEARNING_DEFAULT_MOOD || 'curious',
+    enableMlAnalysis: process.env.SELF_LEARNING_ENABLE_ML !== 'false',
+    maxMlSampleSize: parseInt(process.env.SELF_LEARNING_MAX_ML_SAMPLE || '120', 10),
+    totalAffectionCap: parseInt(process.env.SELF_LEARNING_TOTAL_AFFECTION_CAP || '250', 10),
+    maxUserAffection: parseInt(process.env.SELF_LEARNING_MAX_USER_AFFECTION || '100', 10),
+    dbType: (process.env.SELF_LEARNING_DB_TYPE || 'sqlite') as 'sqlite' | 'mysql' | 'postgres',
+    dbFile: process.env.SELF_LEARNING_DB_FILE || './data/self-learning/self-learning.sqlite',
+    mysqlUrl: process.env.SELF_LEARNING_MYSQL_URL || '',
+    postgresUrl: process.env.SELF_LEARNING_POSTGRES_URL || '',
+  },
 } as const;
 
 // 启动时验证必要配置

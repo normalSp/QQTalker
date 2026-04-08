@@ -1199,6 +1199,11 @@
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg></span>
         智能日志分析
       </div>
+      <div class="nav-label">插件</div>
+      <div class="nav-item" data-page="selflearning">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M12 2v6"/><path d="M12 16v6"/><path d="M4.93 4.93l4.24 4.24"/><path d="M14.83 14.83l4.24 4.24"/><path d="M2 12h6"/><path d="M16 12h6"/><path d="M4.93 19.07l4.24-4.24"/><path d="M14.83 9.17l4.24-4.24"/><circle cx="12" cy="12" r="3"/></svg></span>
+        自学习中心
+      </div>
       <div class="nav-label">系统</div>
       <div class="nav-item" data-page="config">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg></span>
@@ -1518,6 +1523,106 @@
         </div>
       </div>
 
+      <!-- ========== SELF LEARNING PAGE ========== -->
+      <div class="page" id="page-selflearning">
+        <div class="chatlog-header">
+          <div>
+            <div style="font-size:18px;font-weight:700;margin-bottom:4px;">&#129504; 自学习中心</div>
+            <div style="font-size:12px;color:var(--text-muted);">管理对话风格、黑话、社交关系、好感度、情绪、目标驱动和人格审查。</div>
+          </div>
+          <div class="analyzer-actions" style="gap:10px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:12px;color:var(--text-muted);">群号</span>
+              <select id="slGroupSelect" data-testid="sl-group-select" onchange="loadSelfLearningPanel(false)" style="padding:8px 10px;background:var(--card-bg);border:1px solid var(--border-color);color:var(--text-primary);border-radius:8px;font-family:inherit;min-width:150px;">
+                <option value="">自动选择</option>
+              </select>
+            </div>
+            <button class="analyzer-btn primary" id="slRunLearningBtn" data-testid="sl-run-learning" onclick="runLearningCycle()"><i class="fas fa-bolt"></i> 立即学习</button>
+            <button class="analyzer-btn" id="slRefreshBtn" data-testid="sl-refresh" onclick="loadSelfLearningPanel(true)"><i class="fas fa-sync-alt"></i> 刷新</button>
+          </div>
+        </div>
+
+        <section class="stats-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:20px;">
+          <div class="stat-card cyan"><div class="stat-info"><div class="stat-label">已抓取消息</div><div class="stat-value" id="slStatMessages">0</div><div class="stat-sub">长期学习样本</div></div></div>
+          <div class="stat-card purple"><div class="stat-info"><div class="stat-label">风格特征</div><div class="stat-value" id="slStatPatterns">0</div><div class="stat-sub">表达模式条目</div></div></div>
+          <div class="stat-card pink"><div class="stat-info"><div class="stat-label">群内黑话</div><div class="stat-value" id="slStatSlang">0</div><div class="stat-sub">特殊用语积累</div></div></div>
+          <div class="stat-card teal"><div class="stat-info"><div class="stat-label">长期记忆</div><div class="stat-value" id="slStatMemories">0</div><div class="stat-sub">可注入 Prompt</div></div></div>
+          <div class="stat-card orange"><div class="stat-info"><div class="stat-label">待审查人格</div><div class="stat-value" id="slStatReviews">0</div><div class="stat-sub">可审批建议</div></div></div>
+        </section>
+
+        <div class="main-grid" style="margin-bottom:18px;">
+          <div class="card">
+            <div class="card-header-bar"><span class="card-title">&#128339; 学习策略面板</span></div>
+            <div class="card-body" id="slStrategyPanel" data-testid="sl-strategy-panel"></div>
+          </div>
+          <div class="card">
+            <div class="card-header-bar"><span class="card-title">&#128230; 数据导入导出与重建</span></div>
+            <div class="card-body" id="slDataOpsPanel" data-testid="sl-data-ops-panel"></div>
+          </div>
+        </div>
+
+        <div class="main-grid">
+          <div class="card">
+            <div class="card-header-bar"><span class="card-title">&#128483; 风格学习</span></div>
+            <div class="card-body" id="slStylesPanel"></div>
+          </div>
+          <div class="card">
+            <div class="card-header-bar"><span class="card-title">&#128172; 群组黑话</span></div>
+            <div class="card-body" id="slSlangPanel"></div>
+          </div>
+        </div>
+
+        <div class="main-grid" style="margin-top:18px;">
+          <div class="card">
+            <div class="card-header-bar"><span class="card-title">&#128101; 社交关系</span></div>
+            <div class="card-body" id="slSocialPanel"></div>
+          </div>
+          <div class="card">
+            <div class="card-header-bar"><span class="card-title">&#10084; 好感度与情绪</span></div>
+            <div class="card-body" id="slAffectionPanel"></div>
+          </div>
+        </div>
+
+        <div class="main-grid" style="margin-top:18px;">
+          <div class="card">
+            <div class="card-header-bar"><span class="card-title">&#127919; 目标驱动</span></div>
+            <div class="card-body" id="slGoalsPanel"></div>
+          </div>
+          <div class="card">
+            <div class="card-header-bar"><span class="card-title">&#129489;&#8205;&#128188; 长期记忆</span></div>
+            <div class="card-body" id="slMemoryPanel"></div>
+          </div>
+        </div>
+
+        <div class="main-grid" style="margin-top:18px;">
+          <div class="card">
+            <div class="card-header-bar"><span class="card-title">&#129302; 话题聚类</span></div>
+            <div class="card-body" id="slClustersPanel"></div>
+          </div>
+          <div class="card">
+            <div class="card-header-bar"><span class="card-title">&#128506; 场景分布</span></div>
+            <div class="card-body" id="slScenesPanel"></div>
+          </div>
+        </div>
+
+        <div class="card full-card" style="margin-top:18px;">
+          <div class="card-header-bar"><span class="card-title">&#129534; 高级学习摘要与记忆图谱</span></div>
+          <div class="card-body" id="slAdvancedSummaryPanel"></div>
+        </div>
+
+        <div class="card full-card" style="margin-top:18px;">
+          <div class="card-header-bar"><span class="card-title">&#128221; 人格审查与演化</span></div>
+          <div class="card-body" id="slReviewsPanel"></div>
+        </div>
+
+        <div class="card full-card" style="margin-top:18px;">
+          <div class="card-header-bar"><span class="card-title">&#128221; 学习运行记录</span></div>
+          <div class="card-body" id="slRunsPanel"></div>
+        </div>
+
+        <input id="slImportFile" type="file" accept="application/json,.json" style="display:none" onchange="handleLearningImportFile(event)">
+      </div>
+
       <!-- ========== CONFIG PAGE ========== -->
       <div class="page" id="page-config">
         <div class="card full-card">
@@ -1623,6 +1728,75 @@
                 <div class="config-row">
                   <span class="config-label">ASTRBOT_QQ</span>
                   <input class="config-input" id="cfg-astrbotQq" type="number" placeholder="AstrBot QQ号">
+                </div>
+              </div>
+              <div class="config-group">
+                <div class="config-group-title">&#129504; Self Learning</div>
+                <div class="config-row">
+                  <span class="config-label">SELF_LEARNING_ENABLED</span>
+                  <div class="config-toggle-wrap">
+                    <div class="config-toggle" id="cfg-selfLearningEnabled" onclick="this.classList.toggle('on')"></div>
+                    <span class="config-toggle-label">启用自学习插件</span>
+                  </div>
+                </div>
+                <div class="config-row">
+                  <span class="config-label">SELF_LEARNING_DATA_DIR</span>
+                  <input class="config-input" id="cfg-selfLearningDataDir" placeholder="./data/self-learning">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">SELF_LEARNING_TARGETS</span>
+                  <input class="config-input" id="cfg-selfLearningTargets" placeholder="QQ号或 group_群号，逗号分隔">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">SELF_LEARNING_BLACKLIST</span>
+                  <input class="config-input" id="cfg-selfLearningBlacklist" placeholder="学习黑名单，逗号分隔">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">SELF_LEARNING_INTERVAL_HOURS</span>
+                  <input class="config-input" id="cfg-selfLearningIntervalHours" type="number" placeholder="6">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">SELF_LEARNING_MIN_MESSAGES</span>
+                  <input class="config-input" id="cfg-selfLearningMinMessages" type="number" placeholder="30">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">SELF_LEARNING_MAX_BATCH</span>
+                  <input class="config-input" id="cfg-selfLearningMaxBatch" type="number" placeholder="200">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">SELF_LEARNING_DB_TYPE</span>
+                  <input class="config-input" id="cfg-selfLearningDbType" placeholder="sqlite">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">SELF_LEARNING_DB_FILE</span>
+                  <input class="config-input" id="cfg-selfLearningDbFile" placeholder="./data/self-learning/self-learning.sqlite">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">SELF_LEARNING_MYSQL_URL</span>
+                  <input class="config-input" id="cfg-selfLearningMysqlUrl" placeholder="mysql://user:pass@host:3306/db">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">SELF_LEARNING_POSTGRES_URL</span>
+                  <input class="config-input" id="cfg-selfLearningPostgresUrl" placeholder="postgres://user:pass@host:5432/db">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">SELF_LEARNING_ENABLE_ML</span>
+                  <div class="config-toggle-wrap">
+                    <div class="config-toggle" id="cfg-selfLearningEnableMl" onclick="this.classList.toggle('on')"></div>
+                    <span class="config-toggle-label">启用轻量聚类与场景分析</span>
+                  </div>
+                </div>
+                <div class="config-row">
+                  <span class="config-label">SELF_LEARNING_MAX_ML_SAMPLE</span>
+                  <input class="config-input" id="cfg-selfLearningMaxMlSample" type="number" placeholder="120">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">SELF_LEARNING_TOTAL_AFFECTION_CAP</span>
+                  <input class="config-input" id="cfg-selfLearningTotalAffectionCap" type="number" placeholder="250">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">SELF_LEARNING_MAX_USER_AFFECTION</span>
+                  <input class="config-input" id="cfg-selfLearningMaxUserAffection" type="number" placeholder="100">
                 </div>
               </div>
               <div class="config-actions">
@@ -1955,6 +2129,26 @@ const state = {
   analyzerLogs: [],
   azLevelChart: null,
   azFreqChart: null,
+  selfLearning: {
+    groupId: '',
+    groups: [],
+    overview: null,
+    strategy: null,
+    styles: [],
+    slang: [],
+    social: [],
+    affection: [],
+    goals: [],
+    memories: [],
+    reviews: [],
+    mood: null,
+    advancedSummary: null,
+    clusters: [],
+    scenes: [],
+    memoryGraph: { nodes: [], edges: [] },
+    runs: [],
+    importMode: 'merge',
+  },
 };
 let tpChart = null, donutChart = null, cumulChart = null, memChart = null, apiCallsChart = null;
 let es = null;
@@ -1967,6 +2161,34 @@ async function api(url, opts) {
 }
 function fmt(n) { return Number(n || 0).toLocaleString(); }
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function fmtTime(ts) {
+  if (!ts) return '未执行';
+  try { return new Date(ts).toLocaleString('zh-CN', { hour12: false }); }
+  catch (e) { return '未执行'; }
+}
+function slCurrentGroup() {
+  return document.getElementById('slGroupSelect').value || state.selfLearning.groupId || '';
+}
+function slRequireGroup(actionText) {
+  var groupId = slCurrentGroup();
+  if (!groupId) {
+    toast((actionText || '该操作') + '需要先选择群号', 'error');
+    return '';
+  }
+  return groupId;
+}
+function downloadUtf8Json(filename, data) {
+  var text = '\uFEFF' + JSON.stringify(data, null, 2);
+  var blob = new Blob([text], { type: 'application/json;charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(function() { URL.revokeObjectURL(url); }, 500);
+}
 function toast(msg, type) {
   type = type || 'info';
   const c = document.getElementById('toastContainer');
@@ -1984,6 +2206,7 @@ const titles = {
   chatlog: { title: '聊天记录', bc: '控制台 / 监控 / 聊天记录' },
   analytics: { title: '数据分析', bc: '控制台 / 监控 / 分析' },
   analyzer: { title: '智能日志分析', bc: '控制台 / 监控 / 日志分析' },
+  selflearning: { title: '自学习中心', bc: '控制台 / 插件 / 自学习中心' },
   config: { title: '配置管理', bc: '控制台 / 系统 / 配置' },
   blocklist: { title: '屏蔽管理', bc: '控制台 / 系统 / 屏蔽管理' },
   process: { title: '进程信息', bc: '控制台 / 系统 / 进程' },
@@ -2021,6 +2244,7 @@ function switchPage(page) {
     document.getElementById('pageTitle').textContent = titles[page].title;
     document.getElementById('pageBreadcrumb').textContent = titles[page].bc;
   }
+  if (page === 'selflearning') loadSelfLearningPanel(false);
   if (page === 'config' && !state.config) loadConfig();
   if (page === 'process') renderProcess();
   if (page === 'analytics') initAnalyticsCharts();
@@ -2277,6 +2501,19 @@ async function loadConfig() {
     groupWhitelist: 'cfg-groupWhitelist', maxHistory: 'cfg-maxHistory',
     ttsVoice: 'cfg-ttsVoice', ttsSpeed: 'cfg-ttsSpeed', sttModel: 'cfg-sttModel',
     scheduleGroups: 'cfg-scheduleGroups', astrbotQq: 'cfg-astrbotQq',
+    selfLearningDataDir: 'cfg-selfLearningDataDir',
+    selfLearningTargets: 'cfg-selfLearningTargets',
+    selfLearningBlacklist: 'cfg-selfLearningBlacklist',
+    selfLearningIntervalHours: 'cfg-selfLearningIntervalHours',
+    selfLearningMinMessages: 'cfg-selfLearningMinMessages',
+    selfLearningMaxBatch: 'cfg-selfLearningMaxBatch',
+    selfLearningDbType: 'cfg-selfLearningDbType',
+    selfLearningDbFile: 'cfg-selfLearningDbFile',
+    selfLearningMysqlUrl: 'cfg-selfLearningMysqlUrl',
+    selfLearningPostgresUrl: 'cfg-selfLearningPostgresUrl',
+    selfLearningMaxMlSample: 'cfg-selfLearningMaxMlSample',
+    selfLearningTotalAffectionCap: 'cfg-selfLearningTotalAffectionCap',
+    selfLearningMaxUserAffection: 'cfg-selfLearningMaxUserAffection',
   };
   for (const [k, id] of Object.entries(map)) {
     const el = document.getElementById(id);
@@ -2290,6 +2527,10 @@ async function loadConfig() {
   if (ttsEl) ttsEl.className = 'config-toggle' + (cfg.ttsEnabled ? ' on' : '');
   const sttEl = document.getElementById('cfg-sttEnabled');
   if (sttEl) sttEl.className = 'config-toggle' + (cfg.sttEnabled ? ' on' : '');
+  const slEl = document.getElementById('cfg-selfLearningEnabled');
+  if (slEl) slEl.className = 'config-toggle' + (cfg.selfLearningEnabled ? ' on' : '');
+  const slMlEl = document.getElementById('cfg-selfLearningEnableMl');
+  if (slMlEl) slMlEl.className = 'config-toggle' + (cfg.selfLearningEnableMl ? ' on' : '');
   toast('配置已加载', 'success');
 }
 
@@ -2302,6 +2543,19 @@ async function saveConfig() {
     GROUP_WHITELIST: 'cfg-groupWhitelist', MAX_HISTORY: 'cfg-maxHistory',
     TTS_VOICE: 'cfg-ttsVoice', TTS_SPEED: 'cfg-ttsSpeed', STT_MODEL: 'cfg-sttModel',
     SCHEDULE_GROUPS: 'cfg-scheduleGroups', ASTRBOT_QQ: 'cfg-astrbotQq',
+    SELF_LEARNING_DATA_DIR: 'cfg-selfLearningDataDir',
+    SELF_LEARNING_TARGETS: 'cfg-selfLearningTargets',
+    SELF_LEARNING_BLACKLIST: 'cfg-selfLearningBlacklist',
+    SELF_LEARNING_INTERVAL_HOURS: 'cfg-selfLearningIntervalHours',
+    SELF_LEARNING_MIN_MESSAGES: 'cfg-selfLearningMinMessages',
+    SELF_LEARNING_MAX_BATCH: 'cfg-selfLearningMaxBatch',
+    SELF_LEARNING_DB_TYPE: 'cfg-selfLearningDbType',
+    SELF_LEARNING_DB_FILE: 'cfg-selfLearningDbFile',
+    SELF_LEARNING_MYSQL_URL: 'cfg-selfLearningMysqlUrl',
+    SELF_LEARNING_POSTGRES_URL: 'cfg-selfLearningPostgresUrl',
+    SELF_LEARNING_MAX_ML_SAMPLE: 'cfg-selfLearningMaxMlSample',
+    SELF_LEARNING_TOTAL_AFFECTION_CAP: 'cfg-selfLearningTotalAffectionCap',
+    SELF_LEARNING_MAX_USER_AFFECTION: 'cfg-selfLearningMaxUserAffection',
   };
   for (const [envKey, id] of Object.entries(fields)) {
     const el = document.getElementById(id);
@@ -2310,6 +2564,8 @@ async function saveConfig() {
   data.AT_TRIGGER = document.getElementById('cfg-atTrigger').classList.contains('on') ? 'true' : 'false';
   data.TTS_ENABLED = document.getElementById('cfg-ttsEnabled').classList.contains('on') ? 'true' : 'false';
   data.STT_ENABLED = document.getElementById('cfg-sttEnabled').classList.contains('on') ? 'true' : 'false';
+  data.SELF_LEARNING_ENABLED = document.getElementById('cfg-selfLearningEnabled').classList.contains('on') ? 'true' : 'false';
+  data.SELF_LEARNING_ENABLE_ML = document.getElementById('cfg-selfLearningEnableMl').classList.contains('on') ? 'true' : 'false';
 
   const res = await fetch('/api/config', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -2434,7 +2690,455 @@ async function manualRefresh() {
   btn.disabled = true;
   icon.classList.add('refresh-spinning');
   await refreshAll();
+  if (document.getElementById('page-selflearning').classList.contains('active')) {
+    await loadSelfLearningPanel(false);
+  }
   setTimeout(() => { btn.disabled = false; icon.classList.remove('refresh-spinning'); }, 600);
+}
+
+// ========== Self Learning ==========
+function renderSimpleEmpty(text) {
+  return '<div class="empty-state"><div class="empty-icon">&#129300;</div><div class="empty-text">' + text + '</div></div>';
+}
+
+function renderSelfLearningList(items, renderItem) {
+  if (!items || !items.length) return renderSimpleEmpty('暂无数据');
+  return '<div style="display:flex;flex-direction:column;gap:10px;">' + items.map(renderItem).join('') + '</div>';
+}
+
+function renderLearningStrategyPanel() {
+  var strategy = state.selfLearning.strategy || {};
+  var runtime = strategy.runtime || {};
+  var settings = strategy.settings || {};
+  var autoEnabled = !!runtime.autoLearningEnabled;
+  return '' +
+    '<div style="display:flex;flex-direction:column;gap:14px;">' +
+      '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">' +
+        '<div style="padding:12px;border:1px solid var(--border-color);border-radius:12px;background:rgba(255,255,255,0.02);">' +
+          '<div style="font-size:12px;color:var(--text-muted);">运行态自动学习</div>' +
+          '<div style="margin-top:6px;font-size:18px;font-weight:700;color:' + (autoEnabled ? 'var(--success)' : 'var(--warning)') + ';">' + (autoEnabled ? '已开启' : '已暂停') + '</div>' +
+          '<div style="margin-top:6px;font-size:12px;color:var(--text-secondary);">上次执行：' + esc(fmtTime(runtime.lastLearningAt || 0)) + '</div>' +
+          '<div style="margin-top:4px;font-size:12px;color:var(--text-secondary);">预计下次：' + esc(fmtTime(runtime.nextLearningAt || 0)) + '</div>' +
+        '</div>' +
+        '<div style="padding:12px;border:1px solid var(--border-color);border-radius:12px;background:rgba(255,255,255,0.02);">' +
+          '<div style="font-size:12px;color:var(--text-muted);">当前选中群</div>' +
+          '<div style="margin-top:6px;font-size:18px;font-weight:700;color:var(--accent);">' + esc(slCurrentGroup() || '未选择') + '</div>' +
+          '<div style="margin-top:6px;font-size:12px;color:var(--text-secondary);">手动学习、清理与重建都将作用于当前群。</div>' +
+        '</div>' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">' +
+        '<label style="display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--text-muted);">学习间隔(小时)<input id="slStrategyInterval" data-testid="sl-strategy-interval" class="config-input" type="number" min="1" value="' + esc(String(settings.learningIntervalHours || 6)) + '"></label>' +
+        '<label style="display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--text-muted);">最少消息数<input id="slStrategyMinMessages" class="config-input" type="number" min="1" value="' + esc(String(settings.minMessagesForLearning || 30)) + '"></label>' +
+        '<label style="display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--text-muted);">批处理上限<input id="slStrategyMaxBatch" class="config-input" type="number" min="1" value="' + esc(String(settings.maxMessagesPerBatch || 200)) + '"></label>' +
+        '<label style="display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--text-muted);">ML 样本上限<input id="slStrategyMlSample" class="config-input" type="number" min="1" value="' + esc(String(settings.maxMlSampleSize || 120)) + '"></label>' +
+        '<label style="display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--text-muted);">总好感度池<input id="slStrategyAffectionCap" class="config-input" type="number" min="1" value="' + esc(String(settings.totalAffectionCap || 250)) + '"></label>' +
+        '<label style="display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--text-muted);">单用户好感上限<input id="slStrategyUserCap" class="config-input" type="number" min="1" value="' + esc(String(settings.maxUserAffection || 100)) + '"></label>' +
+      '</div>' +
+      '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-primary);">' +
+        '<input id="slStrategyEnableMl" data-testid="sl-strategy-enable-ml" type="checkbox" ' + (settings.enableMlAnalysis ? 'checked' : '') + '>' +
+        '<span>启用高级 ML/聚类分析</span>' +
+      '</label>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:10px;">' +
+        '<button class="analyzer-btn primary" id="slToggleRuntimeBtn" data-testid="sl-toggle-runtime" onclick="toggleLearningRuntime()">' + (autoEnabled ? '暂停自动学习' : '开启自动学习') + '</button>' +
+        '<button class="analyzer-btn" id="slSaveStrategyBtn" data-testid="sl-save-strategy" onclick="saveLearningStrategy()">保存策略到 .env</button>' +
+      '</div>' +
+    '</div>';
+}
+
+function renderLearningDataOpsPanel() {
+  return '' +
+    '<div style="display:flex;flex-direction:column;gap:14px;">' +
+      '<div style="display:flex;flex-wrap:wrap;gap:10px;">' +
+        '<button class="analyzer-btn" id="slExportCurrentBtn" data-testid="sl-export-current" onclick="exportLearningData(true)">导出当前群</button>' +
+        '<button class="analyzer-btn" id="slExportAllBtn" data-testid="sl-export-all" onclick="exportLearningData(false)">导出全部</button>' +
+        '<button class="analyzer-btn" id="slImportFileBtn" data-testid="sl-import-file" onclick="triggerLearningImportFile()">选择导入文件</button>' +
+        '<button class="analyzer-btn" id="slRebuildBtn" data-testid="sl-rebuild-snapshot" onclick="rebuildLearningSnapshots()">重建分析快照</button>' +
+        '<button class="analyzer-btn" id="slClearGroupBtn" data-testid="sl-clear-group" style="background:var(--danger);color:#fff;border:none;" onclick="clearLearningGroup()">清理当前群学习记录</button>' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:160px 1fr;gap:12px;align-items:start;">' +
+        '<label style="display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--text-muted);">导入模式<select id="slImportMode" data-testid="sl-import-mode" class="config-input" onchange="state.selfLearning.importMode=this.value"><option value="merge"' + (state.selfLearning.importMode === 'merge' ? ' selected' : '') + '>合并导入</option><option value="replace"' + (state.selfLearning.importMode === 'replace' ? ' selected' : '') + '>覆盖导入</option></select></label>' +
+        '<div style="font-size:12px;color:var(--text-secondary);line-height:1.7;padding-top:2px;">支持粘贴或选择 UTF-8 JSON 文件；导出文件会附带 UTF-8 BOM，便于在 Windows 下直接查看。</div>' +
+      '</div>' +
+      '<textarea id="slImportPayload" data-testid="sl-import-payload" class="config-input" placeholder="把导出的学习数据 JSON 粘贴到这里，或点击上方“选择导入文件”" style="min-height:160px;resize:vertical;font-family:JetBrains Mono, monospace;"></textarea>' +
+      '<div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;">' +
+        '<div style="font-size:12px;color:var(--text-muted);">当前群：' + esc(slCurrentGroup() || '未选择') + '</div>' +
+        '<button class="analyzer-btn primary" id="slImportBtn" data-testid="sl-import-btn" onclick="importLearningData()">执行导入</button>' +
+      '</div>' +
+    '</div>';
+}
+
+function renderLearningControlPanels() {
+  document.getElementById('slStrategyPanel').innerHTML = renderLearningStrategyPanel();
+  document.getElementById('slDataOpsPanel').innerHTML = renderLearningDataOpsPanel();
+}
+
+async function loadSelfLearningPanel(showToast) {
+  const [overviewData, strategyData, status] = await Promise.all([
+    api('/api/self-learning/overview'),
+    api('/api/self-learning/strategy'),
+    api('/api/status'),
+  ]);
+  state.selfLearning.strategy = strategyData || null;
+  if (!overviewData || !overviewData.overview) {
+    renderLearningControlPanels();
+    document.getElementById('slStylesPanel').innerHTML = renderSimpleEmpty('自学习插件未启用或尚未初始化');
+    document.getElementById('slSlangPanel').innerHTML = renderSimpleEmpty('无可用数据');
+    document.getElementById('slSocialPanel').innerHTML = renderSimpleEmpty('无可用数据');
+    document.getElementById('slAffectionPanel').innerHTML = renderSimpleEmpty('无可用数据');
+    document.getElementById('slGoalsPanel').innerHTML = renderSimpleEmpty('无可用数据');
+    document.getElementById('slMemoryPanel').innerHTML = renderSimpleEmpty('无可用数据');
+    document.getElementById('slClustersPanel').innerHTML = renderSimpleEmpty('无可用数据');
+    document.getElementById('slScenesPanel').innerHTML = renderSimpleEmpty('无可用数据');
+    document.getElementById('slAdvancedSummaryPanel').innerHTML = renderSimpleEmpty('无可用数据');
+    document.getElementById('slReviewsPanel').innerHTML = renderSimpleEmpty('无可用数据');
+    document.getElementById('slRunsPanel').innerHTML = renderSimpleEmpty('无可用数据');
+    return;
+  }
+
+  state.selfLearning.overview = overviewData.overview;
+  document.getElementById('slStatMessages').textContent = fmt(overviewData.overview.messages);
+  document.getElementById('slStatPatterns').textContent = fmt(overviewData.overview.patterns);
+  document.getElementById('slStatSlang').textContent = fmt(overviewData.overview.slang);
+  document.getElementById('slStatMemories').textContent = fmt(overviewData.overview.memories);
+  document.getElementById('slStatReviews').textContent = fmt(overviewData.overview.pendingReviews);
+
+  const groups = Array.from(new Set([].concat((overviewData.groups || []).map(String), (status.activeGroups || []).map(String))));
+  state.selfLearning.groups = groups;
+  const select = document.getElementById('slGroupSelect');
+  const current = select.value || state.selfLearning.groupId || groups[0] || '';
+  state.selfLearning.groupId = current;
+  select.innerHTML = '<option value="">自动选择</option>' + groups.map(g => '<option value="' + g + '">' + g + '</option>').join('');
+  select.value = current;
+  renderLearningControlPanels();
+
+  if (!current) {
+    document.getElementById('slStylesPanel').innerHTML = renderSimpleEmpty('等待群聊消息后会出现学习数据');
+    document.getElementById('slSlangPanel').innerHTML = renderSimpleEmpty('请先选择或激活一个群');
+    document.getElementById('slSocialPanel').innerHTML = renderSimpleEmpty('请先选择或激活一个群');
+    document.getElementById('slAffectionPanel').innerHTML = renderSimpleEmpty('请先选择或激活一个群');
+    document.getElementById('slGoalsPanel').innerHTML = renderSimpleEmpty('请先选择或激活一个群');
+    document.getElementById('slMemoryPanel').innerHTML = renderSimpleEmpty('请先选择或激活一个群');
+    document.getElementById('slClustersPanel').innerHTML = renderSimpleEmpty('请先选择或激活一个群');
+    document.getElementById('slScenesPanel').innerHTML = renderSimpleEmpty('请先选择或激活一个群');
+    document.getElementById('slAdvancedSummaryPanel').innerHTML = renderSimpleEmpty('请先选择或激活一个群');
+    document.getElementById('slReviewsPanel').innerHTML = renderSimpleEmpty('请先选择或激活一个群');
+    document.getElementById('slRunsPanel').innerHTML = renderSimpleEmpty('请先选择或激活一个群');
+    return;
+  }
+
+  const query = '?groupId=' + encodeURIComponent(current);
+  const [styles, slang, social, affection, mood, goals, memories, reviews, advancedSummary, clusters, scenes, memoryGraph, runs] = await Promise.all([
+    api('/api/self-learning/styles' + query),
+    api('/api/self-learning/slang' + query),
+    api('/api/self-learning/social' + query),
+    api('/api/self-learning/affection' + query),
+    api('/api/self-learning/mood' + query),
+    api('/api/self-learning/goals' + query),
+    api('/api/self-learning/memories' + query),
+    api('/api/self-learning/persona-reviews' + query),
+    api('/api/self-learning/advanced-summary' + query),
+    api('/api/self-learning/ml-clusters' + query),
+    api('/api/self-learning/scene-map' + query),
+    api('/api/self-learning/memory-graph' + query),
+    api('/api/self-learning/learning-runs' + query),
+  ]);
+
+  state.selfLearning.styles = styles.items || [];
+  state.selfLearning.slang = slang.items || [];
+  state.selfLearning.social = social.items || [];
+  state.selfLearning.affection = affection.items || [];
+  state.selfLearning.mood = mood.item || null;
+  state.selfLearning.goals = goals.items || [];
+  state.selfLearning.memories = memories.items || [];
+  state.selfLearning.reviews = reviews.items || [];
+  state.selfLearning.advancedSummary = advancedSummary.item || null;
+  state.selfLearning.clusters = clusters.items || [];
+  state.selfLearning.scenes = scenes.items || [];
+  state.selfLearning.memoryGraph = memoryGraph.item || { nodes: [], edges: [] };
+  state.selfLearning.runs = runs.items || [];
+
+  document.getElementById('slStylesPanel').innerHTML = renderSelfLearningList(state.selfLearning.styles.slice(0, 10), item =>
+    '<div style="padding:12px;border:1px solid var(--border-color);border-radius:12px;background:rgba(255,255,255,0.02);">' +
+      '<div style="display:flex;justify-content:space-between;gap:12px;align-items:center;"><strong>' + esc(item.patternType) + '</strong><span style="color:var(--accent);font-size:12px;">权重 ' + Number(item.weight || 0).toFixed(1) + '</span></div>' +
+      '<div style="margin-top:6px;color:var(--text-primary);">' + esc(item.patternValue || '') + '</div>' +
+      '<div style="margin-top:4px;font-size:12px;color:var(--text-muted);">用户 ' + esc(String(item.userId || '')) + ' · 证据 ' + esc(String(item.evidenceCount || 0)) + '</div>' +
+    '</div>'
+  );
+
+  document.getElementById('slSlangPanel').innerHTML = renderSelfLearningList(state.selfLearning.slang.slice(0, 10), item =>
+    '<div style="padding:12px;border:1px solid var(--border-color);border-radius:12px;background:rgba(255,255,255,0.02);">' +
+      '<div style="display:flex;justify-content:space-between;gap:12px;"><strong style="color:var(--accent);">' + esc(item.term || '') + '</strong><span style="font-size:12px;color:var(--text-muted);">' + esc(String(item.usageCount || 0)) + ' 次</span></div>' +
+      '<div style="margin-top:6px;color:var(--text-secondary);font-size:13px;line-height:1.6;">' + esc(item.meaning || '') + '</div>' +
+    '</div>'
+  );
+
+  document.getElementById('slSocialPanel').innerHTML = renderSelfLearningList(state.selfLearning.social.slice(0, 12), item =>
+    '<div style="padding:12px;border:1px solid var(--border-color);border-radius:12px;background:rgba(255,255,255,0.02);display:flex;justify-content:space-between;gap:12px;align-items:center;">' +
+      '<div><div><strong>' + esc(String(item.sourceUserId || '')) + '</strong> → <strong>' + esc(String(item.targetUserId || '')) + '</strong></div><div style="margin-top:6px;font-size:12px;color:var(--text-muted);">' + esc(item.relationType || '') + ' · 互动 ' + esc(String(item.interactions || 0)) + '</div></div>' +
+      '<div style="font-size:18px;color:var(--accent);font-weight:700;">' + Number(item.score || 0).toFixed(1) + '</div>' +
+    '</div>'
+  );
+
+  document.getElementById('slAffectionPanel').innerHTML =
+    '<div style="margin-bottom:12px;padding:12px;border:1px solid var(--border-color);border-radius:12px;background:rgba(255,255,255,0.02);">' +
+      '<div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">当前情绪</div>' +
+      '<div style="font-size:18px;font-weight:700;color:var(--accent);">' + esc(state.selfLearning.mood ? state.selfLearning.mood.mood : 'curious') + '</div>' +
+      '<div style="margin-top:6px;font-size:12px;color:var(--text-secondary);">' + esc(state.selfLearning.mood ? state.selfLearning.mood.reason : '等待更多聊天样本') + '</div>' +
+    '</div>' +
+    renderSelfLearningList(state.selfLearning.affection.slice(0, 10), item =>
+      '<div style="display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.05);">' +
+        '<div><strong>' + esc(String(item.userId || '')) + '</strong><div style="margin-top:4px;font-size:12px;color:var(--text-muted);">最近波动 ' + Number(item.lastDelta || 0).toFixed(1) + '</div></div>' +
+        '<div style="font-size:20px;color:var(--pink);font-weight:700;">' + Number(item.score || 0).toFixed(1) + '</div>' +
+      '</div>'
+    );
+
+  document.getElementById('slGoalsPanel').innerHTML = renderSelfLearningList(state.selfLearning.goals.slice(0, 10), item =>
+    '<div style="padding:12px;border:1px solid var(--border-color);border-radius:12px;background:rgba(255,255,255,0.02);">' +
+      '<div style="display:flex;justify-content:space-between;gap:12px;"><strong>' + esc(item.goalType || '') + '</strong><span style="font-size:12px;color:var(--text-muted);">用户 ' + esc(String(item.userId || '')) + '</span></div>' +
+      '<div style="margin-top:6px;color:var(--text-secondary);font-size:13px;line-height:1.6;">' + esc(item.summary || '') + '</div>' +
+    '</div>'
+  );
+
+  document.getElementById('slMemoryPanel').innerHTML = renderSelfLearningList(state.selfLearning.memories.slice(0, 12), item =>
+    '<div style="padding:12px;border:1px solid var(--border-color);border-radius:12px;background:rgba(255,255,255,0.02);">' +
+      '<div style="display:flex;justify-content:space-between;gap:12px;"><strong>' + esc(item.key || '') + '</strong><span style="font-size:12px;color:var(--text-muted);">重要度 ' + Number(item.importance || 0).toFixed(2) + '</span></div>' +
+      '<div style="margin-top:6px;color:var(--text-secondary);font-size:13px;line-height:1.6;">' + esc(item.content || '') + '</div>' +
+      '<div style="margin-top:8px;font-size:12px;color:var(--accent);">' + (item.tags || []).map(tag => '#' + esc(tag)).join(' ') + '</div>' +
+    '</div>'
+  );
+
+  document.getElementById('slClustersPanel').innerHTML = renderSelfLearningList(state.selfLearning.clusters.slice(0, 8), item =>
+    '<div style="padding:12px;border:1px solid var(--border-color);border-radius:12px;background:rgba(255,255,255,0.02);">' +
+      '<div style="display:flex;justify-content:space-between;gap:12px;"><strong>' + esc(item.label || ('Cluster ' + item.id)) + '</strong><span style="font-size:12px;color:var(--text-muted);">' + esc(String(item.messageCount || 0)) + ' 条</span></div>' +
+      '<div style="margin-top:6px;font-size:13px;color:var(--text-secondary);">' + (item.keywords || []).map(k => '#' + esc(k)).join(' ') + '</div>' +
+      '<div style="margin-top:8px;font-size:12px;color:var(--text-muted);">样例：' + esc((item.sampleMessages || []).join(' / ')) + '</div>' +
+    '</div>'
+  );
+
+  document.getElementById('slScenesPanel').innerHTML = renderSelfLearningList(state.selfLearning.scenes.slice(0, 10), item =>
+    '<div style="padding:12px;border:1px solid var(--border-color);border-radius:12px;background:rgba(255,255,255,0.02);">' +
+      '<div style="display:flex;justify-content:space-between;gap:12px;"><strong>' + esc(item.scene || '') + '</strong><span style="font-size:12px;color:var(--accent);">' + Math.round(Number(item.confidence || 0) * 100) + '%</span></div>' +
+      '<div style="margin-top:6px;font-size:12px;color:var(--text-muted);">类别 ' + esc(item.category || '') + ' · 命中 ' + esc(String(item.matches || 0)) + ' 条</div>' +
+      '<div style="margin-top:8px;font-size:12px;color:var(--text-secondary);">' + esc((item.sampleMessages || []).join(' / ')) + '</div>' +
+    '</div>'
+  );
+
+  var memoryGraphText = '记忆节点 ' + ((state.selfLearning.memoryGraph.nodes || []).length) + ' 个，连接边 ' + ((state.selfLearning.memoryGraph.edges || []).length) + ' 条';
+  var memoryEdgePreview = (state.selfLearning.memoryGraph.edges || []).slice(0, 8).map(edge =>
+    '<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:12px;color:var(--text-secondary);">' +
+      '<strong style="color:var(--text-primary);">' + esc(edge.source || '') + '</strong> ↔ <strong style="color:var(--text-primary);">' + esc(edge.target || '') + '</strong>' +
+      ' <span style="color:var(--accent);">(' + Number(edge.weight || 0).toFixed(2) + ')</span>' +
+      '<div style="margin-top:4px;">' + esc(edge.reason || '') + '</div>' +
+    '</div>'
+  ).join('');
+
+  document.getElementById('slAdvancedSummaryPanel').innerHTML =
+    '<div style="display:grid;grid-template-columns:1.2fr 1fr;gap:18px;">' +
+      '<div style="padding:14px;border:1px solid var(--border-color);border-radius:14px;background:rgba(255,255,255,0.02);">' +
+        '<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">高级学习摘要</div>' +
+        '<div style="font-size:15px;line-height:1.8;color:var(--text-primary);">' + esc(state.selfLearning.advancedSummary ? state.selfLearning.advancedSummary.summary : '暂无高级学习结果') + '</div>' +
+        '<div style="margin-top:10px;font-size:12px;color:var(--text-secondary);">' + memoryGraphText + '</div>' +
+        '<pre style="margin-top:12px;white-space:pre-wrap;word-break:break-word;background:rgba(0,0,0,0.18);padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.05);color:var(--text-primary);font-size:12px;line-height:1.6;">' + esc(state.selfLearning.advancedSummary ? state.selfLearning.advancedSummary.personaPrompt : '暂无 persona prompt') + '</pre>' +
+      '</div>' +
+      '<div style="padding:14px;border:1px solid var(--border-color);border-radius:14px;background:rgba(255,255,255,0.02);">' +
+        '<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">记忆图谱连边预览</div>' +
+        (memoryEdgePreview || '<div style="font-size:13px;color:var(--text-muted);">暂无足够的记忆连接</div>') +
+      '</div>' +
+    '</div>';
+
+  document.getElementById('slReviewsPanel').innerHTML = renderSelfLearningList(state.selfLearning.reviews.slice(0, 10), item =>
+    '<div data-testid="sl-review-card" style="padding:14px;border:1px solid var(--border-color);border-radius:14px;background:rgba(255,255,255,0.02);">' +
+      '<div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;"><div><strong>' + esc(item.personaName || '') + '</strong><div style="margin-top:4px;font-size:12px;color:var(--text-muted);">状态：' + esc(item.status || '') + '</div></div>' +
+      '<div style="display:flex;gap:8px;align-items:center;">' +
+        '<button class="analyzer-btn" data-testid="sl-approve-review-' + Number(item.id || 0) + '" style="padding:6px 12px;border-radius:8px;" onclick="approvePersonaReview(' + Number(item.id || 0) + ')" ' + (item.status !== 'pending' ? 'disabled' : '') + '>批准</button>' +
+        '<button class="analyzer-btn" data-testid="sl-reject-review-' + Number(item.id || 0) + '" style="padding:6px 12px;border-radius:8px;background:var(--danger);color:#fff;border:none;" onclick="rejectPersonaReview(' + Number(item.id || 0) + ')" ' + (item.status !== 'pending' ? 'disabled' : '') + '>驳回</button>' +
+      '</div></div>' +
+      '<div style="margin-top:10px;font-size:13px;color:var(--text-secondary);line-height:1.7;">' + esc(item.summary || '') + '</div>' +
+      '<pre style="margin-top:10px;white-space:pre-wrap;word-break:break-word;background:rgba(0,0,0,0.18);padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.05);color:var(--text-primary);font-size:12px;line-height:1.6;">' + esc(item.suggestedPrompt || '') + '</pre>' +
+    '</div>'
+  );
+
+  document.getElementById('slRunsPanel').innerHTML = renderSelfLearningList(state.selfLearning.runs.slice(0, 10), item =>
+    '<div style="padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.05);">' +
+      '<div style="display:flex;justify-content:space-between;gap:12px;"><strong>' + esc(item.status || 'completed') + '</strong><span style="font-size:12px;color:var(--text-muted);">' + new Date(item.createdAt || Date.now()).toLocaleString('zh-CN', { hour12: false }) + '</span></div>' +
+      '<div style="margin-top:6px;font-size:13px;color:var(--text-secondary);line-height:1.7;">' + esc(item.summary || '') + '</div>' +
+    '</div>'
+  );
+
+  if (showToast) toast('自学习面板已刷新', 'success');
+}
+
+async function runLearningCycle() {
+  var groupId = slRequireGroup('立即学习');
+  if (!groupId) return;
+  const res = await fetch('/api/self-learning/learning/run', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ groupId: Number(groupId) })
+  });
+  if (res.ok) {
+    toast('已触发一次完整学习周期', 'success');
+    await loadSelfLearningPanel(false);
+  } else {
+    toast('触发学习失败', 'error');
+  }
+}
+
+async function toggleLearningRuntime() {
+  var enabled = !((state.selfLearning.strategy || {}).runtime || {}).autoLearningEnabled;
+  const res = await fetch('/api/self-learning/strategy/runtime', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ autoLearningEnabled: enabled })
+  });
+  if (res.ok) {
+    toast(enabled ? '已开启自动学习' : '已暂停自动学习', 'success');
+    await loadSelfLearningPanel(false);
+  } else {
+    toast('更新运行态策略失败', 'error');
+  }
+}
+
+async function saveLearningStrategy() {
+  var payload = {
+    SELF_LEARNING_INTERVAL_HOURS: document.getElementById('slStrategyInterval').value || '6',
+    SELF_LEARNING_MIN_MESSAGES: document.getElementById('slStrategyMinMessages').value || '30',
+    SELF_LEARNING_MAX_BATCH: document.getElementById('slStrategyMaxBatch').value || '200',
+    SELF_LEARNING_ENABLE_ML: document.getElementById('slStrategyEnableMl').checked ? 'true' : 'false',
+    SELF_LEARNING_MAX_ML_SAMPLE: document.getElementById('slStrategyMlSample').value || '120',
+    SELF_LEARNING_TOTAL_AFFECTION_CAP: document.getElementById('slStrategyAffectionCap').value || '250',
+    SELF_LEARNING_MAX_USER_AFFECTION: document.getElementById('slStrategyUserCap').value || '100'
+  };
+  const res = await fetch('/api/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (res.ok) {
+    toast('策略已写入 .env，重启后永久生效', 'success');
+  } else {
+    toast('保存策略失败', 'error');
+  }
+}
+
+async function exportLearningData(currentOnly) {
+  var groupId = currentOnly ? slRequireGroup('导出当前群数据') : '';
+  if (currentOnly && !groupId) return;
+  var url = '/api/self-learning/export' + (groupId ? ('?groupId=' + encodeURIComponent(groupId)) : '');
+  var data = await api(url);
+  if (!data || !data.data || !data.source) {
+    toast('导出失败', 'error');
+    return;
+  }
+  var name = currentOnly ? ('self-learning-group-' + groupId + '.json') : 'self-learning-all-groups.json';
+  downloadUtf8Json(name, data);
+  toast(currentOnly ? '已导出当前群学习数据' : '已导出全部学习数据', 'success');
+}
+
+function triggerLearningImportFile() {
+  document.getElementById('slImportFile').click();
+}
+
+function handleLearningImportFile(event) {
+  var file = event && event.target && event.target.files ? event.target.files[0] : null;
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    document.getElementById('slImportPayload').value = ev.target.result || '';
+    toast('已载入导入文件：' + file.name, 'success');
+  };
+  reader.onerror = function() {
+    toast('读取导入文件失败', 'error');
+  };
+  reader.readAsText(file, 'utf-8');
+}
+
+async function importLearningData() {
+  var payload = document.getElementById('slImportPayload').value.trim();
+  if (!payload) {
+    toast('请先粘贴或选择学习数据 JSON', 'error');
+    return;
+  }
+  var bundle = null;
+  try {
+    bundle = JSON.parse(payload);
+  } catch (e) {
+    toast('导入 JSON 格式不正确', 'error');
+    return;
+  }
+  var mode = document.getElementById('slImportMode').value || 'merge';
+  const res = await fetch('/api/self-learning/import', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bundle: bundle, mode: mode })
+  });
+  if (res.ok) {
+    toast(mode === 'replace' ? '已覆盖导入学习数据' : '已合并导入学习数据', 'success');
+    await loadSelfLearningPanel(false);
+  } else {
+    toast('导入失败', 'error');
+  }
+}
+
+async function clearLearningGroup() {
+  var groupId = slRequireGroup('清理当前群学习记录');
+  if (!groupId) return;
+  if (!window.confirm('确认清理群 ' + groupId + ' 的全部自学习数据吗？此操作不可撤销。')) return;
+  const res = await fetch('/api/self-learning/group/clear', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ groupId: Number(groupId) })
+  });
+  if (res.ok) {
+    toast('已清理当前群学习记录', 'success');
+    await loadSelfLearningPanel(false);
+  } else {
+    toast('清理失败', 'error');
+  }
+}
+
+async function rebuildLearningSnapshots() {
+  var groupId = slRequireGroup('重建分析快照');
+  if (!groupId) return;
+  const res = await fetch('/api/self-learning/analysis/rebuild', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ groupId: Number(groupId) })
+  });
+  if (res.ok) {
+    toast('已重建当前群分析快照', 'success');
+    await loadSelfLearningPanel(false);
+  } else {
+    toast('重建失败', 'error');
+  }
+}
+
+async function approvePersonaReview(reviewId) {
+  const res = await fetch('/api/self-learning/persona-review/approve', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reviewId })
+  });
+  if (res.ok) {
+    toast('已批准人格建议并应用到 Prompt 上下文', 'success');
+    await loadSelfLearningPanel(false);
+  } else {
+    toast('批准失败', 'error');
+  }
+}
+
+async function rejectPersonaReview(reviewId) {
+  const res = await fetch('/api/self-learning/persona-review/reject', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reviewId })
+  });
+  if (res.ok) {
+    toast('已驳回该人格建议', 'success');
+    await loadSelfLearningPanel(false);
+  } else {
+    toast('驳回失败', 'error');
+  }
 }
 
 // ========== Log Analyzer ==========
