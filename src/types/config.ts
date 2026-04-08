@@ -24,6 +24,14 @@ export const config = {
   ttsEnabled: process.env.TTS_ENABLED === 'true',
   ttsVoice: process.env.TTS_VOICE || 'zh-CN-XiaoyiNeural',
   ttsSpeed: parseInt(process.env.TTS_SPEED || '4', 10),
+
+  // STT语音识别配置（语音消息转文字）
+  // 默认使用 SiliconFlow 的 SenseVoice（免费，中文效果好）
+  // 如用 OpenAI Whisper: STT_BASE_URL=https://api.openai.com/v1  STT_MODEL=whisper-1
+  sttEnabled: process.env.STT_ENABLED === 'true',
+  sttBaseUrl: process.env.STT_BASE_URL || '',          // 留空默认用 SiliconFlow
+  sttApiKey: process.env.STT_API_KEY || '',            // 留空默认复用 AI_API_KEY
+  sttModel: process.env.STT_MODEL || 'FunAudioLLM/SenseVoiceSmall',
   
   // 会话配置
   maxHistory: parseInt(process.env.MAX_HISTORY || '100', 10),
@@ -32,6 +40,9 @@ export const config = {
   scheduleGroups: process.env.SCHEDULE_GROUPS
     ? process.env.SCHEDULE_GROUPS.split(',').map(Number)
     : [],
+
+  // Astrbot 转发配置 - 目标 Astrbot 机器人QQ号
+  astrbotQq: parseInt(process.env.ASTRBOT_QQ || '0', 10),
 
   // 日志
   logLevel: (process.env.LOG_LEVEL || 'info') as 'debug' | 'info' | 'warn' | 'error',

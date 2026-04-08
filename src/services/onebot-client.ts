@@ -1,5 +1,6 @@
 import WebSocket from 'ws';
-import pino from 'pino';
+import fs from 'fs';
+import { logger } from '../logger';
 import { config } from '../types/config';
 import type {
   OneBotMessage,
@@ -7,9 +8,11 @@ import type {
   SendGroupMsgResponse,
 } from '../types/onebot';
 
-const logger = pino({ level: config.logLevel });
+
+
 
 type MessageHandler = (msg: OneBotMessage) => void;
+type NoticeHandler = (notice: Record<string, any>) => void;
 
 /**
  * OneBot WebSocket 客户端
@@ -18,6 +21,8 @@ type MessageHandler = (msg: OneBotMessage) => void;
 export class OneBotClient {
   private ws: WebSocket | null = null;
   private handlers: MessageHandler[] = [];
+  /** 通知事件处理器（群成员变动等） */
+  private noticeHandlers: NoticeHandler[] = [];
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 50; // 增加重连次数
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
@@ -85,16 +90,25 @@ export class OneBotClient {
           try {
             const raw = data.toString();
             const json = JSON.parse(raw);
-            
+
+            // API 响应（有 echo 字段）不作为事件处理
+            if (json.echo !== undefined) {
+              return; // 由 callApi 的 handler 处理
+            }
+
             // 日志：打印所有消息类型
             if (json.post_type === 'message') {
-              logger.info(`📩 收到消息事件: type=${json.message_type}, group_id=${json.group_id}, user_id=${json.user_id}`);
+              logger.info(`📩 收到消息事件: type=${json.message_type}, group_id=${json.group_id}, user_id=${json.user_id}, message_id=${json.message_id}`);
               logger.debug(`   message内容: ${JSON.stringify(json.message).substring(0, 200)}`);
-              logger.debug(`   raw_message: ${(json.raw_message || '').substring(0, 100)}`);
+              logger.debug(`   raw_message: ${(json.raw_message || '').substring(0, 500)}`);
               this.emit(json as OneBotMessage);
+            } else if (json.post_type === 'notice') {
+              // 通知事件（群成员变动等）
+              this.emitNotice(json);
+              logger.info(`📋 收到通知事件: ${json.notice_type}/${json.sub_type || ''}, group_id=${json.group_id}, user_id=${json.user_id}`);
             } else {
               // 其他事件（心跳等）只debug级别
-              logger.debug(`收到事件: ${json.post_type}/${json.meta_event_type || json.sub_type || ''}`);
+              logger.debug(`收到事件: ${json.post_type || 'unknown'}/${json.meta_event_type || json.sub_type || ''}`);
             }
           } catch (e) {
             logger.debug(`收到非JSON数据: ${data.toString().substring(0, 50)}`);
@@ -155,11 +169,28 @@ export class OneBotClient {
   }
 
   /**
+   * 注册通知事件处理器（群成员入群/退群等）
+   */
+  onNotice(handler: NoticeHandler): void {
+    this.noticeHandlers.push(handler);
+  }
+
+  /**
    * 发送群消息
    */
   async sendGroupMsg(groupId: number, message: string): Promise<SendGroupMsgResponse> {
     return this.callApi<SendGroupMsgResponse>('send_group_msg', {
       group_id: groupId,
+      message,
+    });
+  }
+
+  /**
+   * 发送私聊消息 (用于Astrbot转发)
+   */
+  async sendPrivateMsg(userId: number, message: string): Promise<SendGroupMsgResponse> {
+    return this.callApi<SendGroupMsgResponse>('send_private_msg', {
+      user_id: userId,
       message,
     });
   }
@@ -172,6 +203,62 @@ export class OneBotClient {
       group_id: groupId,
       message: recordCq,
     });
+  }
+
+  /**
+   * 获取语音/视频文件（通过 OneBot get_record / get_file API）
+   * 
+   * NapCat 等实现支持通过文件名或路径获取音频文件的本地缓存副本
+   * 返回下载后的本地文件路径，失败返回 null
+   */
+  async getRecordFile(fileName: string, outDir?: string): Promise<string | null> {
+    const targetDir = outDir || process.cwd() + '/tmp/audio';
+
+    // 先尝试 get_record（OneBot v11 标准）
+    // NapCat 的 get_record 需要 file 字段（文件名或完整路径）
+    try {
+      const result = await this.callApi<any>('get_record', {
+        file: fileName,
+        out_dir: targetDir,
+      });
+      logger.debug(`[get_record] 原始返回: ${JSON.stringify(result).substring(0, 200)}`);
+      if (result?.file && fs.existsSync(result.file)) {
+        return result.file;
+      }
+      // 有些实现返回 data.file
+      if (result?.data?.file && fs.existsSync(result.data.file)) {
+        return result.data.file;
+      }
+    } catch (e) {
+      logger.debug(`get_record 失败，尝试 get_file: ${e instanceof Error ? e.message : e}`);
+    }
+
+    // 回退到 get_file（部分实现用这个，NapCat 也支持）
+    try {
+      const result = await this.callApi<any>('get_file', {
+        file: fileName,
+        out_dir: targetDir,
+      });
+      logger.debug(`[get_file] 原始返回: ${JSON.stringify(result).substring(0, 200)}`);
+      
+      // 检查返回的文件路径是否真实存在
+      let filePath: string | null = null;
+      if (result?.file) filePath = result.file;
+      else if (result?.data?.file) filePath = result.data.file;
+
+      if (filePath) {
+        if (fs.existsSync(filePath)) {
+          logger.info(`[get_file] 文件验证通过: ${filePath} (${Math.round(fs.statSync(filePath).size / 1024)}KB)`);
+          return filePath;
+        } else {
+          logger.warn(`[get_file] 返回路径不存在: ${filePath}，API 可能只返回了原始引用而非下载后的文件`);
+        }
+      }
+    } catch (e) {
+      logger.debug(`get_file 也失败了: ${e instanceof Error ? e.message : e}`);
+    }
+
+    return null;
   }
 
   /**
@@ -204,6 +291,10 @@ export class OneBotClient {
             this.ws?.off('message', handler); // 只移除API监听器，不删除主消息处理器
             
             if (res.retcode === 0 || res.status === 'ok') {
+              resolve(res.data ?? res);
+            } else if (res.data && (res.retcode === 1 || res.retcode === undefined)) {
+              // 某些OneBot实现(NapCat等)对send_group_msg返回retcode=1但有data
+              // 只要data中有message_id就认为发送成功
               resolve(res.data ?? res);
             } else {
               reject(new Error(`API错误 [${action}]: retcode=${res.retcode}, msg=${res.msg || res.message || JSON.stringify(res)}`));
@@ -245,6 +336,19 @@ export class OneBotClient {
         handler(msg);
       } catch (e) {
         logger.error({ error: e }, '消息处理器异常');
+      }
+    }
+  }
+
+  /**
+   * 分发通知事件到所有通知处理器
+   */
+  private emitNotice(notice: Record<string, any>): void {
+    for (const handler of this.noticeHandlers) {
+      try {
+        handler(notice);
+      } catch (e) {
+        logger.error({ error: e }, '通知事件处理器异常');
       }
     }
   }
@@ -317,7 +421,7 @@ export class OneBotClient {
           const json = JSON.parse(raw);
           
           if (json.post_type === 'message') {
-            logger.info(`📩 收到消息事件: type=${json.message_type}, group_id=${json.group_id}, user_id=${json.user_id}`);
+            logger.info(`📩 收到消息事件: type=${json.message_type}, group_id=${json.group_id}, user_id=${json.user_id}, message_id=${json.message_id}`);
             this.emit(json as OneBotMessage);
           } else {
             logger.debug(`收到事件: ${json.post_type}/${json.meta_event_type || json.sub_type || ''}`);
@@ -356,5 +460,27 @@ export class OneBotClient {
       } catch {}
       this.ws = null;
     }
+  }
+
+  /** 获取当前重连次数（供 Dashboard 统计） */
+  getReconnectCount(): number {
+    return this.reconnectAttempts;
+  }
+
+  /**
+   * 获取合并转发消息内容 (OneBot v11: get_forward_msg)
+   */
+  async getForwardMsg(id: string): Promise<any | null> {
+    try {
+      return await this.callApi<any>('get_forward_msg', { id });
+    } catch (e) {
+      logger.debug(`get_forward_msg 失败: ${e instanceof Error ? e.message : e}`);
+      return null;
+    }
+  }
+
+  /** 检查 WebSocket 是否已连接 */
+  isConnected(): boolean {
+    return this.ws?.readyState === WebSocket.OPEN;
   }
 }

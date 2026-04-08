@@ -1,7 +1,7 @@
-import pino from 'pino';
-import { config } from '../types/config';
+import { logger } from '../logger';
 
-const logger = pino({ level: config.logLevel });
+
+
 
 // ===== \u5929\u5E72\u5730\u652F\u7CFB\u7EDF =====
 

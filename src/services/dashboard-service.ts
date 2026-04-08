@@ -1,0 +1,1216 @@
+﻿import http from 'http';
+import https from 'https';
+import fs from 'fs';
+import path from 'path';
+import { URL } from 'url';
+import { logger } from '../logger';
+import { config } from '../types/config';
+import type { OneBotClient } from './onebot-client';
+import type { BlockService } from './block-service';
+
+/** SSE 事件类型 */
+interface SseEvent {
+  type: 'message' | 'ai' | 'tts' | 'stt' | 'error' | 'system' | 'status' | 'config';
+  data: Record<string, unknown>;
+  timestamp: string;
+}
+
+/**
+ * Dashboard 可视化控制台服务
+ * 提供 HTTP API + SSE 实时推送 + env 配置管理 + 内嵌日志分析
+ */
+export class DashboardService {
+  private server: http.Server | null = null;
+  private port: number;
+
+  // SSE 客户端集合
+  private sseClients: Set<http.ServerResponse> = new Set();
+
+  // 统计历史（用于图表）
+  private statsHistory: Array<{
+    time: string;
+    totalMessages: number;
+    totalAiCalls: number;
+    totalTtsCalls: number;
+    totalSttCalls: number;
+    memoryMB: number;
+  }> = [];
+  private readonly maxHistoryPoints = 120;
+
+  // 日志事件缓冲
+  private logBuffer: SseEvent[] = [];
+  private readonly maxLogBuffer = 200;
+
+  // 统计定时器
+  private statsTimer: ReturnType<typeof setInterval> | null = null;
+
+  // 图片代理缓存: url -> { buffer, contentType, timestamp }
+  private imageCache = new Map<string, { buffer: Buffer; contentType: string; timestamp: number }>();
+  private readonly IMAGE_CACHE_MAX = 200;
+  private readonly IMAGE_CACHE_TTL = 30 * 60 * 1000; // 30分钟过期
+
+  // 运行时状态（由外部服务注入）
+  public status: {
+    connected: boolean;
+    wsUrl: string;
+    connectTime?: string;
+    reconnectCount: number;
+    lastMessageTime?: string;
+    totalMessages: number;
+    totalAiCalls: number;
+    totalTtsCalls: number;
+    totalSttCalls: number;
+    startTime: string;
+    activeGroups: Set<number>;
+    sessionsCount: number;
+    lastError?: string;
+    sendQueueLength: number;
+  };
+
+  // OneBot 客户端引用（用于调用 get_forward_msg 等API）
+  private onebotClient: OneBotClient | null = null;
+
+  // 屏蔽服务引用
+  private blockService: BlockService | null = null;
+
+  constructor(port: number = 3180) {
+    this.port = port;
+    this.status = {
+      connected: false,
+      wsUrl: config.wsUrl,
+      reconnectCount: 0,
+      totalMessages: 0,
+      totalAiCalls: 0,
+      totalTtsCalls: 0,
+      totalSttCalls: 0,
+      startTime: new Date().toISOString(),
+      activeGroups: new Set(),
+      sessionsCount: 0,
+      sendQueueLength: 0,
+    };
+  }
+
+  /** 注入 OneBot 客户端 */
+  setOneBotClient(client: OneBotClient): void {
+    this.onebotClient = client;
+  }
+
+  /** 注入屏蔽服务 */
+  setBlockService(blockService: BlockService): void {
+    this.blockService = blockService;
+  }
+
+  /** 更新连接状态 */
+  updateConnectionStatus(connected: boolean, reconnectCount?: number): void {
+    this.status.connected = connected;
+    if (connected) {
+      this.status.connectTime = new Date().toISOString();
+      this.status.reconnectCount = reconnectCount ?? this.status.reconnectCount;
+    }
+    this.broadcastSse({
+      type: 'status',
+      data: { connected, reconnectCount: this.status.reconnectCount },
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  /** 记录消息 */
+  recordMessage(): void {
+    this.status.totalMessages++;
+    this.status.lastMessageTime = new Date().toISOString();
+    this.pushLog('message', `第 ${this.status.totalMessages} 条消息`);
+  }
+
+  /** 记录AI调用 */
+  recordAiCall(): void {
+    this.status.totalAiCalls++;
+    this.pushLog('ai', `AI 调用 #${this.status.totalAiCalls}`);
+  }
+
+  /** 记录TTS调用 */
+  recordTtsCall(): void {
+    this.status.totalTtsCalls++;
+    this.pushLog('tts', `TTS 语音合成 #${this.status.totalTtsCalls}`);
+  }
+
+  /** 记录STT调用 */
+  recordSttCall(): void {
+    this.status.totalSttCalls++;
+    this.pushLog('stt', `STT 语音识别 #${this.status.totalSttCalls}`);
+  }
+
+  /** 更新活跃群列表 */
+  setActiveGroups(groups: Set<number>): void {
+    this.status.activeGroups = groups;
+  }
+
+  /** 更新会话数 */
+  setSessionsCount(count: number): void {
+    this.status.sessionsCount = count;
+  }
+
+  /** 更新发送队列长度 */
+  setSendQueueLength(len: number): void {
+    this.status.sendQueueLength = len;
+  }
+
+  /** 记录错误 */
+  recordError(error: string): void {
+    this.status.lastError = error;
+    this.pushLog('error', error);
+    logger.warn(`[Dashboard] Error recorded: ${error}`);
+  }
+
+  /** 推送系统日志 */
+  pushLog(type: string, message: string): void {
+    const event: SseEvent = {
+      type: type as SseEvent['type'],
+      data: { message },
+      timestamp: new Date().toISOString(),
+    };
+    this.logBuffer.unshift(event);
+    if (this.logBuffer.length > this.maxLogBuffer) {
+      this.logBuffer.pop();
+    }
+    this.broadcastSse(event);
+  }
+
+  /** 广播 SSE 事件给所有客户端 */
+  private broadcastSse(event: SseEvent): void {
+    const data = `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`;
+    for (const client of this.sseClients) {
+      try {
+        client.write(data);
+      } catch {
+        this.sseClients.delete(client);
+      }
+    }
+  }
+
+  /** 采样统计数据（定时调用） */
+  private sampleStats(): void {
+    const mem = process.memoryUsage();
+    this.statsHistory.push({
+      time: new Date().toLocaleTimeString('zh-CN', { hour12: false }),
+      totalMessages: this.status.totalMessages,
+      totalAiCalls: this.status.totalAiCalls,
+      totalTtsCalls: this.status.totalTtsCalls,
+      totalSttCalls: this.status.totalSttCalls,
+      memoryMB: Math.round(mem.heapUsed / 1024 / 1024),
+    });
+    if (this.statsHistory.length > this.maxHistoryPoints) {
+      this.statsHistory.shift();
+    }
+  }
+
+  /**
+   * 启动 Dashboard HTTP 服务
+   */
+  start(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.server = http.createServer((req, res) => this.handleRequest(req, res));
+
+      // 统计采样定时器（每5秒）
+      this.statsTimer = setInterval(() => this.sampleStats(), 5000);
+
+      this.server.listen(this.port, () => {
+        logger.info(`[Dashboard] 控制台已启动: http://localhost:${this.port}`);
+        this.pushLog('system', 'Dashboard 控制台已启动');
+        resolve();
+      });
+
+      this.server.on('error', (err) => {
+        reject(err);
+      });
+    });
+  }
+
+  /**
+   * 处理请求
+   */
+  private handleRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
+    const httpReq = req;
+    const httpRes = res;
+    const urlObj = new URL(httpReq.url || '/', `http://localhost:${this.port}`);
+    const urlPath = urlObj.pathname;
+
+    // CORS
+    httpRes.setHeader('Access-Control-Allow-Origin', '*');
+    httpRes.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');
+    httpRes.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (httpReq.method === 'OPTIONS') {
+      httpRes.writeHead(204);
+      httpRes.end();
+      return;
+    }
+
+    // SSE 流
+    if (urlPath === '/api/events') {
+      this.handleSse(httpReq, httpRes);
+      return;
+    }
+
+    // GET API
+    if (httpReq.method === 'GET') {
+      switch (urlPath) {
+        case '/api/status':
+          this.handleApi(httpRes, () => this.getStatusData());
+          return;
+        case '/api/config':
+          this.handleApi(httpRes, () => this.getConfigData());
+          return;
+        case '/api/stats':
+          this.handleApi(httpRes, () => this.getStatsData());
+          return;
+        case '/api/stats/history':
+          this.handleApi(httpRes, () => ({ history: this.statsHistory }));
+          return;
+        case '/api/logs':
+          this.handleApi(httpRes, () => ({ logs: this.logBuffer }));
+          return;
+        case '/api/log-file':
+          this.serveLogFile(httpRes);
+          return;
+        case '/api/chat-logs':
+          this.handleApi(httpRes, () => this.getChatLogs(urlObj.searchParams));
+          return;
+        case '/api/image-proxy':
+          this.handleImageProxy(httpReq, httpRes, urlObj.searchParams);
+          return;
+        case '/api/forward-msg':
+          this.handleForwardMsg(httpRes, urlObj.searchParams);
+          return;
+        // 屏蔽管理 API
+        case '/api/block/users':
+          this.handleApi(httpRes, () => ({
+            users: this.blockService?.getBlockedUsers() || [],
+            stats: this.blockService?.getStats() || { blockedUserCount: 0, blockedGroupCount: 0, involvedGroupCount: 0 },
+          }));
+          return;
+        case '/api/block/groups':
+          this.handleApi(httpRes, () => ({
+            groups: this.blockService?.getBlockedGroups() || [],
+            stats: this.blockService?.getStats() || { blockedUserCount: 0, blockedGroupCount: 0, involvedGroupCount: 0 },
+          }));
+          return;
+        case '/':
+        case '/index.html':
+        case '/analyzer':
+        case '/analyzer.html':
+          this.serveDashboardHtml(httpRes);
+          return;
+      }
+    }
+
+    // POST API（env 配置修改 + 屏蔽管理）
+    if (httpReq.method === 'POST') {
+      switch (urlPath) {
+        case '/api/config':
+          this.handlePostBody(httpReq, (body) => {
+            this.updateEnvConfig(body);
+            this.handleApi(httpRes, () => ({ success: true, config: this.getConfigData() }));
+          });
+          return;
+        case '/api/config/reload':
+          this.handleApi(httpRes, () => {
+            return { success: true, message: 'Config reloaded' };
+          });
+          return;
+        // 屏蔽管理 POST
+        case '/api/block/user':
+          this.handlePostBody(httpReq, (body) => {
+            const userId = parseInt(body.userId, 10);
+            const groupId = parseInt(body.groupId, 10);
+            const nickname = body.nickname || `用户${userId}`;
+            if (!userId || !groupId) {
+              httpRes.writeHead(400, { 'Content-Type': 'application/json' });
+              httpRes.end(JSON.stringify({ error: 'Missing userId or groupId' }));
+              return;
+            }
+            const entry = this.blockService?.blockUser(userId, groupId, nickname, body.reason || 'Dashboard 手动屏蔽');
+            this.handleApi(httpRes, () => ({ success: true, entry }));
+          });
+          return;
+        case '/api/block/user/remove':
+          this.handlePostBody(httpReq, (body) => {
+            const userId = parseInt(body.userId, 10);
+            const groupId = parseInt(body.groupId, 10);
+            const removed = this.blockService?.unblockUser(userId, groupId);
+            this.handleApi(httpRes, () => ({ success: true, removed }));
+          });
+          return;
+        case '/api/block/group':
+          this.handlePostBody(httpReq, (body) => {
+            const groupId = parseInt(body.groupId, 10);
+            if (!groupId) {
+              httpRes.writeHead(400, { 'Content-Type': 'application/json' });
+              httpRes.end(JSON.stringify({ error: 'Missing groupId' }));
+              return;
+            }
+            this.blockService?.blockGroup(groupId);
+            this.handleApi(httpRes, () => ({ success: true, groupId }));
+          });
+          return;
+        case '/api/block/group/remove':
+          this.handlePostBody(httpReq, (body) => {
+            const groupId = parseInt(body.groupId, 10);
+            const removed = this.blockService?.unblockGroup(groupId);
+            this.handleApi(httpRes, () => ({ success: true, removed }));
+          });
+          return;
+      }
+    }
+
+    httpRes.writeHead(404);
+    httpRes.end(JSON.stringify({ error: 'Not Found' }));
+  }
+
+  /**
+   * 图片代理：通过服务端中转QQ图片，绕过防盗链
+   * GET /api/image-proxy?url=<encodedUrl>
+   */
+  private handleImageProxy(req: http.IncomingMessage, res: http.ServerResponse, params: URLSearchParams): void {
+    let targetUrl = params.get('url');
+    if (!targetUrl) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Missing url parameter' }));
+      return;
+    }
+
+    // 修复 URL 中可能残留的 HTML 实体编码（&amp; -> &）
+    targetUrl = targetUrl.replace(/&amp;/g, '&');
+
+    // 安全校验：只允许 QQ 域名的图片
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(targetUrl);
+    } catch {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid URL' }));
+      return;
+    }
+
+    const allowedHosts = [
+      'multimedia.nt.qq.com.cn',
+      'multimedia.qq.com',
+      'gchat.qpic.cn',
+      'c2cpicdw.qpic.cn',
+      'qpic.cn',
+    ];
+    const isAllowed = allowedHosts.some(h => parsedUrl.hostname === h || parsedUrl.hostname.endsWith('.' + h));
+    if (!isAllowed) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Domain not allowed' }));
+      return;
+    }
+
+    // 检查缓存
+    const cached = this.imageCache.get(targetUrl);
+    if (cached && (Date.now() - cached.timestamp) < this.IMAGE_CACHE_TTL) {
+      res.writeHead(200, {
+        'Content-Type': cached.contentType,
+        'Content-Length': cached.buffer.length,
+        'Cache-Control': 'public, max-age=1800',
+        'Access-Control-Allow-Origin': '*',
+      });
+      res.end(cached.buffer);
+      return;
+    }
+
+    // 请求远程图片
+    const isHttps = parsedUrl.protocol === 'https:';
+    const mod = isHttps ? https : http;
+
+    const proxyReq = mod.request(targetUrl, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) QQ/9.9.12 Chrome/120.0.0.0 Safari/537.36',
+        'Referer': 'https://qun.qq.com/',
+      },
+      timeout: 15000,
+    }, (proxyRes) => {
+      if (proxyRes.statusCode !== 200) {
+        res.writeHead(502, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: `Upstream returned ${proxyRes.statusCode}` }));
+        return;
+      }
+
+      const chunks: Buffer[] = [];
+      proxyRes.on('data', (chunk) => chunks.push(chunk));
+      proxyRes.on('end', () => {
+        const imageBuffer = Buffer.concat(chunks);
+
+        // 限制缓存大小（最大5MB）
+        if (imageBuffer.length > 0 && imageBuffer.length <= 5 * 1024 * 1024) {
+          const contentType = proxyRes.headers['content-type'] || 'image/jpeg';
+          // 淘汰旧缓存
+          if (this.imageCache.size >= this.IMAGE_CACHE_MAX) {
+            const oldestKey = this.imageCache.keys().next().value;
+            if (oldestKey) this.imageCache.delete(oldestKey);
+          }
+          this.imageCache.set(targetUrl, { buffer: imageBuffer, contentType, timestamp: Date.now() });
+        }
+
+        res.writeHead(200, {
+          'Content-Type': proxyRes.headers['content-type'] || 'image/jpeg',
+          'Content-Length': imageBuffer.length,
+          'Cache-Control': 'public, max-age=1800',
+          'Access-Control-Allow-Origin': '*',
+        });
+        res.end(imageBuffer);
+      });
+    });
+
+    proxyReq.on('error', (err) => {
+      logger.debug(`[ImageProxy] 请求失败: ${err.message}`);
+      if (!res.headersSent) {
+        res.writeHead(502, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Proxy request failed' }));
+      }
+    });
+
+    proxyReq.on('timeout', () => {
+      proxyReq.destroy();
+      if (!res.headersSent) {
+        res.writeHead(504, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Proxy timeout' }));
+      }
+    });
+
+    proxyReq.end();
+  }
+
+  /**
+   * 获取合并转发消息内容
+   * GET /api/forward-msg?id=<forwardId>
+   */
+  private async handleForwardMsg(res: http.ServerResponse, params: URLSearchParams): Promise<void> {
+    const forwardId = params.get('id');
+    if (!forwardId) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Missing id parameter' }));
+      return;
+    }
+
+    if (!this.onebotClient || !this.onebotClient.isConnected()) {
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'OneBot not connected' }));
+      return;
+    }
+
+    try {
+      const result = await this.onebotClient.getForwardMsg(forwardId);
+      if (!result) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Forward message not found' }));
+        return;
+      }
+
+      // 解析转发消息内容（NapCat/Lagrange 等实现的返回格式）
+      const messages = this.parseForwardMessages(result);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ id: forwardId, messages }));
+    } catch (err: any) {
+      logger.debug(`[Forward] 获取合并转发失败: ${err.message}`);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  }
+
+  /** 解析合并转发消息的内容为数组 */
+  private parseForwardMessages(result: any): Array<{ sender: string; content: string; time: number }> {
+    const messages: Array<{ sender: string; content: string; time: number }> = [];
+
+    // 兼容多种 OneBot 实现的返回格式
+    const msgList = result.messages || result.news || result.content || [];
+    if (!Array.isArray(msgList)) return messages;
+
+    for (const item of msgList) {
+      const sender = item.sender?.nickname || item.sender?.card || `用户${item.sender?.user_id || '?'}`;
+      let content = '';
+
+      // 兼容多种内容格式：content / message / 可能是字符串或数组
+      const rawContent = item.content || item.message;
+
+      if (typeof rawContent === 'string') {
+        content = rawContent;
+      } else if (Array.isArray(rawContent)) {
+        // 消息段数组，转换为可读文本
+        content = rawContent.map((seg: any) => {
+          if (!seg) return '';
+          if (typeof seg === 'string') return seg;
+          if (seg.type === 'text') return seg.data?.text || '';
+          if (seg.type === 'image') return '[图片]';
+          if (seg.type === 'face') return '[表情]';
+          if (seg.type === 'at') return `@${seg.data?.qq || ''}`;
+          if (seg.type === 'record') return '[语音]';
+          if (seg.type === 'video') return '[视频]';
+          if (seg.type === 'forward') return '[合并转发]';
+          if (seg.type === 'json' || seg.type === 'card') return '[卡片/链接]';
+          if (seg.type === 'location') return '[位置]';
+          return `[${seg.type}]`;
+        }).join('');
+      } else if (typeof item.content === 'object' && item.content !== null) {
+        // 有些实现 content 是对象 { type, data }
+        if (item.content.type === 'text') content = item.content.data?.text || '';
+        else content = JSON.stringify(item.content).substring(0, 200);
+      }
+
+      // 如果所有方式都没拿到内容，尝试从其他字段获取
+      if (!content.trim()) {
+        // 尝试从 prompt 字段（合并转发的摘要）获取
+        if (item.prompt) content = item.prompt;
+        // 最后检查 item 本身是否有 text 字段
+        else if (typeof item.text === 'string') content = item.text;
+      }
+
+      messages.push({
+        sender,
+        content: content.trim().substring(0, 500) || '[无内容]',
+        time: item.time || 0,
+      });
+    }
+
+    return messages;
+  }
+
+  /** 服务日志文件内容（供前端日志分析器使用） */
+  private serveLogFile(res: http.ServerResponse): void {
+    const searchDirs = [
+      path.resolve(process.cwd(), '日志'),
+      path.resolve(process.cwd(), 'logs'),
+      path.resolve(process.cwd(), 'log'),
+    ];
+
+    let logFile: string | null = null;
+    let latestMtime = 0;
+
+    for (const dir of searchDirs) {
+      if (!fs.existsSync(dir)) continue;
+      try {
+        const entries = fs.readdirSync(dir);
+        for (const f of entries) {
+          if (!f.endsWith('.txt') && !f.endsWith('.log')) continue;
+          const fp = path.join(dir, f);
+          try {
+            const stat = fs.statSync(fp);
+            if (stat.mtimeMs > latestMtime) {
+              latestMtime = stat.mtimeMs;
+              logFile = fp;
+            }
+          } catch { /* skip unreadable files */ }
+        }
+      } catch { /* skip unreadable dirs */ }
+    }
+
+    if (logFile && fs.existsSync(logFile)) {
+      try {
+        // 读取最后 1MB 日志
+        const stat = fs.statSync(logFile);
+        const maxSize = 1024 * 1024;
+        const start = Math.max(0, stat.size - maxSize);
+        const fd = fs.openSync(logFile, 'r');
+        const buf = Buffer.alloc(stat.size - start);
+        fs.readSync(fd, buf, 0, buf.length, start);
+        fs.closeSync(fd);
+        const content = buf.toString('utf-8');
+        res.writeHead(200, {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'X-Log-File': path.basename(logFile),
+          'X-Log-Mtime': new Date(latestMtime).toISOString(),
+        });
+        res.end(content);
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to read log file' }));
+      }
+    } else {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'No log file found' }));
+    }
+  }
+
+  /** 从日志文件解析聊天记录 */
+  private getChatLogs(params: URLSearchParams) {
+    const logFile = this.findLatestLogFile();
+    if (!logFile) return { messages: [], users: [], groups: [] };
+
+    try {
+      const stat = fs.statSync(logFile);
+      const maxSize = 2 * 1024 * 1024; // 2MB
+      const start = Math.max(0, stat.size - maxSize);
+      const fd = fs.openSync(logFile, 'r');
+      const buf = Buffer.alloc(stat.size - start);
+      fs.readSync(fd, buf, 0, buf.length, start);
+      fs.closeSync(fd);
+      const content = buf.toString('utf-8');
+
+      const messages: Array<{
+        time: number;
+        groupId: string;
+        userId: string;
+        nickname: string;
+        rawMessage: string;
+        messageType: 'text' | 'image' | 'voice' | 'reply' | 'mixed' | 'forward';
+        content: string;
+        imageUrl?: string;
+        voiceText?: string;
+        replyTo?: string;
+        replyId?: string;
+        replyContent?: string;
+        forwardId?: string;
+        messageId?: string;
+      }> = [];
+
+      // 昵称缓存：userId -> nickname
+      const nicknameMap = new Map<string, string>();
+      const userMap = new Map<string, string>();
+      const groupSet = new Set<string>();
+
+      // 匹配被动插话: 📨 [被动插话] 群1080352376 昵称: 内容
+      const chatRe = /^📨 \[被动插话\] 群(\d+) (.+?): (.+)$/;
+      // 匹配被动回复: 📨 [被动回复] -> 群1080352376: 内容
+      const botReplyRe = /^📨 \[被动回复\] -> 群(\d+): (.+)$/;
+      // 匹配AI插聊: 💬 [AI插聊|...] -> 群1080352376: 内容
+      const aiChatRe = /^💬 \[AI插聊[^\]]*\] -> 群(\d+): (.+)$/;
+      // 匹配消息事件: 📩 收到消息事件: type=group, group_id=xxx, user_id=xxx, message_id=xxx
+      const msgEventRe = /^📩 收到消息事件: type=group, group_id=(\d+), user_id=(\d+)(?:, message_id=(\d+))?$/;
+      // 匹配raw_message: raw_message: [CQ:xxx] 或纯文本
+      const rawMsgRe = /^   raw_message: (.+)$/;
+      // 匹配语音发送: [@语音] 群xxx 语音追加发送成功
+      const voiceSendRe = /^\[@语音\] 群(\d+) 语音追加发送成功$/;
+      // 匹配STT结果: [STT] 识别结果: xxx
+      const sttRe = /^\[STT\] 识别结果: (.+)$/;
+
+      const lines = content.split('\n');
+      let pendingUserId = '';
+      let pendingGroupId = '';
+      let pendingTime = 0;
+      let pendingMessageId = '';
+
+      // 第一遍：收集 昵称->userId 映射（单遍扫描，向前回溯最多20行）
+      // 被动插话日志紧跟在 消息事件+raw_message 之后
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line.startsWith('{')) continue;
+        let logObj: any;
+        try { logObj = JSON.parse(line); } catch { continue; }
+        const msg = String(logObj.msg || '');
+        const chatMatch = msg.match(chatRe);
+        if (chatMatch) {
+          const chatGroupId = chatMatch[1];
+          const chatNick = chatMatch[2];
+          const chatTime = logObj.time || 0;
+          // 向前查找对应的消息事件（同一群组、时间差<500ms、最多回溯20行）
+          for (let k = i - 1; k >= Math.max(0, i - 20); k--) {
+            const prevLine = lines[k].trim();
+            if (!prevLine.startsWith('{')) continue;
+            try {
+              const prevObj = JSON.parse(prevLine);
+              const prevMsg = String(prevObj.msg || '');
+              const prevTime = prevObj.time || 0;
+              // 消息事件行：时间戳匹配且群组匹配
+              if (prevMsg.startsWith('📩 收到消息事件:') && prevMsg.includes('group_id=' + chatGroupId) && Math.abs(prevTime - chatTime) < 500) {
+                const prevMatch = prevMsg.match(msgEventRe);
+                if (prevMatch) {
+                  const uid = prevMatch[2]; // group_id=xxx, user_id=xxx -> group(1), user(2), msgid(3)
+                  nicknameMap.set(uid, chatNick);
+                  userMap.set(uid, chatNick);
+                  break;
+                }
+              }
+            } catch { continue; }
+          }
+        }
+      }
+
+      // 第二遍：逐行解析消息
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line.startsWith('{')) continue;
+
+        let logObj: any;
+        try { logObj = JSON.parse(line); } catch { continue; }
+
+        const msg = String(logObj.msg || '');
+        const time = logObj.time || 0;
+
+        // 处理消息事件行
+        const msgMatch = msg.match(msgEventRe);
+        if (msgMatch) {
+          pendingGroupId = msgMatch[1];
+          pendingUserId = msgMatch[2];
+          pendingMessageId = msgMatch[3] || '';
+          pendingTime = time;
+          continue;
+        }
+
+        // 查找下几行的 raw_message
+        if (pendingUserId && msg.startsWith('   raw_message:')) {
+          const raw = msg.replace(/^   raw_message: /, '');
+          const rawMsgMatch = raw.match(rawMsgRe);
+          const rawContent = rawMsgMatch ? rawMsgMatch[1] : raw;
+
+          // 判断消息类型
+          let messageType: 'text' | 'image' | 'voice' | 'reply' | 'mixed' | 'forward' = 'text';
+          let content = rawContent;
+          let imageUrl: string | undefined;
+          let replyTo: string | undefined;
+          let replyId: string | undefined;
+          let replyContent: string | undefined;
+          let forwardId: string | undefined;
+
+          // HTML解码
+          content = content.replace(/&#91;/g, '[').replace(/&#93;/g, ']');
+
+          // 检测合并转发
+          if (content.includes('[CQ:forward,')) {
+            const fwdMatch = content.match(/\[CQ:forward,id=([^\]]+)\]/);
+            if (fwdMatch) forwardId = fwdMatch[1];
+            messageType = 'forward';
+            content = '[合并转发消息]';
+          } else if (content.includes('[CQ:image,')) {
+            // 图片消息
+            const urlMatch = content.match(/url=([^\],]+)/);
+            const summaryMatch = content.match(/summary=([^\],]+)/);
+            if (urlMatch) imageUrl = urlMatch[1];
+            const summary = summaryMatch ? summaryMatch[1] : '';
+            // 提取回复引用信息（如果有的话）
+            const replyMatch = content.match(/\[CQ:reply,id=([^\]]+)\]/);
+            if (replyMatch) replyId = replyMatch[1];
+
+            if (content.includes('[CQ:reply,') || content.includes('[CQ:at,')) {
+              messageType = 'mixed';
+              // 提取回复引用和文字
+              const textParts = content.replace(/\[CQ:reply,id=[^\]]*\]/g, '').replace(/\[CQ:at,qq=[^\]]*\]/g, '').replace(/\[CQ:image,[^\]]*\]/g, '').trim();
+              content = textParts || '';
+              if (replyId) {
+                replyTo = 'replied';
+              }
+            } else {
+              messageType = 'image';
+              content = summary || '[图片消息]';
+            }
+          } else if (content.includes('[CQ:record,')) {
+            messageType = 'voice';
+            content = '[语音消息]';
+            let voiceText: string | undefined;
+            // 查找后续STT结果（扩大搜索范围以匹配异步日志）
+            for (let j = i + 1; j < Math.min(i + 50, lines.length); j++) {
+              try {
+                const nextObj = JSON.parse(lines[j].trim());
+                const nextMsg = String(nextObj.msg || '');
+                if (nextMsg.startsWith('[STT] 识别结果:')) {
+                  const sttText = nextMsg.replace('[STT] 识别结果: ', '');
+                  content = sttText;
+                  voiceText = sttText;
+                  break;
+                }
+              } catch { continue; }
+            }
+            messages.push({
+              time: pendingTime,
+              groupId: pendingGroupId,
+              userId: pendingUserId,
+              nickname: nicknameMap.get(pendingUserId) || '',
+              rawMessage: rawContent,
+              messageType,
+              content: content || '[语音消息]',
+              voiceText,
+              messageId: pendingMessageId,
+            });
+
+            groupSet.add(pendingGroupId);
+            pendingUserId = '';
+            pendingGroupId = '';
+            pendingTime = 0;
+            pendingMessageId = '';
+            continue;
+          } else if (content.includes('[CQ:reply,')) {
+            messageType = 'reply';
+            const replyMatch = content.match(/\[CQ:reply,id=([^\]]+)\]/);
+            if (replyMatch) replyId = replyMatch[1];
+            replyTo = 'replied';
+            // 提取回复的实际文字内容（replyContent 由前端通过 messageId 精确匹配填充）
+            const actualContent = content.replace(/\[CQ:reply,id=[^\]]*\]/g, '').replace(/\[CQ:at,qq=[^\]]*\]/g, '').trim();
+            content = actualContent || '';
+          } else if (content.includes('[CQ:at,')) {
+            messageType = 'text';
+            content = content.replace(/\[CQ:at,qq=[^\]]*\]/g, '').trim();
+          }
+
+          messages.push({
+            time: pendingTime,
+            groupId: pendingGroupId,
+            userId: pendingUserId,
+            nickname: nicknameMap.get(pendingUserId) || '',
+            rawMessage: rawContent,
+            messageType,
+            content: content || '[未知消息]',
+            imageUrl,
+            replyTo,
+            replyId,
+            forwardId,
+            messageId: pendingMessageId,
+          });
+
+          groupSet.add(pendingGroupId);
+          pendingUserId = '';
+          pendingGroupId = '';
+          pendingTime = 0;
+          pendingMessageId = '';
+          continue;
+        }
+
+        // 处理被动插话（已有昵称）
+        // 跳过已通过 消息事件+raw_message 处理过的消息（避免重复）
+        const chatMatch = msg.match(chatRe);
+        if (chatMatch) {
+          // 检查是否已通过消息事件处理过（时间差<500ms）
+          const chatTime = logObj.time || 0;
+          // 查找前面是否有同时间戳的 raw_message 行已被处理
+          for (let k = i - 1; k >= Math.max(0, i - 5); k--) {
+            try {
+              const prevObj = JSON.parse(lines[k].trim());
+              const prevMsg = String(prevObj.msg || '');
+              const prevTime = prevObj.time || 0;
+              if (prevMsg.startsWith('   raw_message:') && Math.abs(prevTime - chatTime) < 500) {
+                // 已处理过，跳过避免重复
+                break;
+              }
+              if (prevMsg.startsWith('📩 收到消息事件:') && Math.abs(prevTime - chatTime) < 500) {
+                // 未找到对应的 raw_message 行，可能是格式不同的消息，仅补全昵称
+                const prevM = prevMsg.match(msgEventRe);
+                if (prevM) {
+                  const uid = prevM[2]; // user_id 捕获组（第2个）
+                  if (!nicknameMap.has(uid)) {
+                    nicknameMap.set(uid, chatMatch[2]);
+                    userMap.set(uid, chatMatch[2]);
+                  }
+                }
+                break;
+              }
+            } catch { break; }
+          }
+          continue;
+        }
+
+        // 处理机器人回复
+        const botMatch = msg.match(botReplyRe);
+        if (botMatch) {
+          messages.push({
+            time,
+            groupId: botMatch[1],
+            userId: 'bot',
+            nickname: 'Claw',
+            rawMessage: msg,
+            messageType: 'text',
+            content: botMatch[2],
+          });
+          groupSet.add(botMatch[1]);
+          continue;
+        }
+
+        // 处理AI插聊
+        const aiMatch = msg.match(aiChatRe);
+        if (aiMatch) {
+          messages.push({
+            time,
+            groupId: aiMatch[1],
+            userId: 'bot',
+            nickname: 'Claw',
+            rawMessage: msg,
+            messageType: 'text',
+            content: aiMatch[2],
+          });
+          groupSet.add(aiMatch[1]);
+          continue;
+        }
+
+        // 处理语音发送（机器人发的语音）
+        const voiceMatch = msg.match(voiceSendRe);
+        if (voiceMatch) {
+          // 查找前几行的TTS内容作为语音文字
+          let voiceContent = '[语音消息]';
+          for (let j = i - 1; j >= Math.max(0, i - 5); j--) {
+            try {
+              const prevObj = JSON.parse(lines[j].trim());
+              const prevMsg = String(prevObj.msg || '');
+              if (prevMsg.startsWith('📨 [被动回复]') || prevMsg.startsWith('💬 [AI')) {
+                const replyContent = prevMsg.match(/-> 群\d+: (.+)$/);
+                if (replyContent) { voiceContent = replyContent[1]; break; }
+              }
+            } catch { break; }
+          }
+          messages.push({
+            time,
+            groupId: voiceMatch[1],
+            userId: 'bot',
+            nickname: 'Claw',
+            rawMessage: msg,
+            messageType: 'voice',
+            content: voiceContent,
+            voiceText: voiceContent,
+          });
+          continue;
+        }
+      }
+
+      // 排序按时间
+      messages.sort((a, b) => a.time - b.time);
+
+      return {
+        messages: messages.slice(-500), // 返回最近500条
+        users: Array.from(userMap.values()),
+        groups: Array.from(groupSet),
+      };
+    } catch (err: any) {
+      return { messages: [], users: [], groups: [], error: err.message };
+    }
+  }
+
+  /** 查找最新的日志文件 */
+  private findLatestLogFile(): string | null {
+    const searchDirs = [
+      path.resolve(process.cwd(), '日志'),
+      path.resolve(process.cwd(), 'logs'),
+      path.resolve(process.cwd(), 'log'),
+    ];
+
+    let logFile: string | null = null;
+    let latestMtime = 0;
+
+    for (const dir of searchDirs) {
+      if (!fs.existsSync(dir)) continue;
+      try {
+        const entries = fs.readdirSync(dir);
+        for (const f of entries) {
+          if (!f.endsWith('.txt') && !f.endsWith('.log')) continue;
+          const fp = path.join(dir, f);
+          try {
+            const stat = fs.statSync(fp);
+            if (stat.mtimeMs > latestMtime) {
+              latestMtime = stat.mtimeMs;
+              logFile = fp;
+            }
+          } catch { /* skip */ }
+        }
+      } catch { /* skip */ }
+    }
+
+    return logFile;
+  }
+
+  /** 获取状态数据 */
+  private getStatusData() {
+    return {
+      ...this.status,
+      activeGroups: Array.from(this.status.activeGroups),
+      uptime: this.getUptime(),
+      memoryUsage: process.memoryUsage(),
+    };
+  }
+
+  /** 获取配置数据（只读视图） */
+  private getConfigData() {
+    return {
+      wsUrl: config.wsUrl,
+      botQq: config.botQq ? String(config.botQq) : '',
+      botNickname: config.botNickname || '',
+      atTrigger: config.atTrigger,
+      aiModel: config.aiModel,
+      aiBaseUrl: config.aiBaseUrl,
+      ttsEnabled: config.ttsEnabled,
+      ttsVoice: config.ttsVoice,
+      ttsSpeed: config.ttsSpeed,
+      sttEnabled: config.sttEnabled,
+      sttModel: config.sttModel,
+      maxHistory: config.maxHistory,
+      scheduleGroups: config.scheduleGroups,
+      groupWhitelist: config.groupWhitelist,
+      astrbotQq: config.astrbotQq,
+      logLevel: config.logLevel,
+    };
+  }
+
+  /** 获取统计数据 */
+  private getStatsData() {
+    return {
+      messagesPerMinute: this.calculateRate(this.status.totalMessages),
+      aiCallsPerMinute: this.calculateRate(this.status.totalAiCalls),
+      uptime: this.getUptime(),
+      process: {
+        pid: process.pid,
+        platform: process.platform,
+        nodeVersion: process.version,
+        memory: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + 'MB',
+        cpuUsage: process.cpuUsage(),
+      },
+    };
+  }
+
+  /** 更新 .env 配置文件 */
+  private updateEnvConfig(updates: Record<string, string>): void {
+    const envPath = path.resolve(process.cwd(), '.env');
+
+    try {
+      let lines: string[] = [];
+      if (fs.existsSync(envPath)) {
+        lines = fs.readFileSync(envPath, 'utf-8').split(/\r?\n/);
+      }
+
+      const existingKeys = new Set<string>();
+
+      for (let i = 0; i < lines.length; i++) {
+        const match = lines[i].match(/^([A-Z_]+)\s*=\s*(.*)/);
+        if (match && updates[match[1]] !== undefined) {
+          lines[i] = `${match[1]}=${updates[match[1]]}`;
+          existingKeys.add(match[1]);
+        }
+      }
+
+      for (const [key, value] of Object.entries(updates)) {
+        if (!existingKeys.has(key)) {
+          if (lines.length > 0 && lines[lines.length - 1].trim() !== '') {
+            lines.push('');
+          }
+          lines.push(`${key}=${value}`);
+        }
+      }
+
+      while (lines.length > 0 && lines[lines.length - 1].trim() === '') {
+        lines.pop();
+      }
+
+      fs.writeFileSync(envPath, lines.join('\n') + '\n', 'utf-8');
+
+      logger.info(`[Dashboard] Config updated: ${Object.keys(updates).join(', ')}`);
+      this.pushLog('system', `配置已更新: ${Object.keys(updates).join(', ')} (需重启生效)`);
+    } catch (err: any) {
+      logger.error({ err }, '[Dashboard] Failed to update .env');
+      this.pushLog('error', `配置更新失败: ${err.message}`);
+    }
+  }
+
+  /** 处理 SSE 连接 */
+  private handleSse(req: http.IncomingMessage, res: http.ServerResponse): void {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+
+    res.write(`event: connected\ndata: ${JSON.stringify({ timestamp: new Date().toISOString() })}\n\n`);
+
+    this.sseClients.add(res);
+
+    res.write(`event: status\ndata: ${JSON.stringify({
+      type: 'status',
+      data: { connected: this.status.connected, reconnectCount: this.status.reconnectCount },
+      timestamp: new Date().toISOString(),
+    })}\n\n`);
+
+    req.on('close', () => {
+      this.sseClients.delete(res);
+    });
+  }
+
+  /** 解析 POST body */
+  private handlePostBody(req: http.IncomingMessage, handler: (body: Record<string, string>) => void): void {
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; });
+    req.on('end', () => {
+      try {
+        handler(JSON.parse(body));
+      } catch {
+        req.destroy();
+      }
+    });
+  }
+
+  private handleApi(res: http.ServerResponse, handler: () => any): void {
+    try {
+      const data = handler();
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify(data));
+    } catch (err: any) {
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  }
+
+  private getUptime(): string {
+    const diff = Date.now() - new Date(this.status.startTime).getTime();
+    const seconds = Math.floor(diff / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    if (days > 0) return `${days}天 ${hours % 24}:${minutes % 60}:${seconds % 60}`;
+    if (hours > 0) return `${hours}小时 ${minutes % 60}分${seconds % 60}秒`;
+    if (minutes > 0) return `${minutes}分${seconds % 60}秒`;
+    return `${seconds}秒`;
+  }
+
+  private calculateRate(total: number): number {
+    const elapsed = (Date.now() - new Date(this.status.startTime).getTime()) / 60000;
+    return elapsed > 0 ? Math.round(total / elapsed) : 0;
+  }
+
+  /**
+   * 提供 Dashboard HTML 页面（从文件读取，避免模板字符串中的隐藏字符问题）
+   */
+  private serveDashboardHtml(res: http.ServerResponse): void {
+    // 按优先级尝试多个路径：项目根目录、exe 同目录、当前工作目录
+    const candidates = [
+      path.join(__dirname, '..', '..', 'dashboard-preview.html'),  // tsc 编译后
+      path.join(path.dirname(process.execPath), 'dashboard-preview.html'), // pkg 打包
+      path.resolve(process.cwd(), 'dashboard-preview.html'),       // 当前工作目录
+    ];
+
+    let htmlPath: string | null = null;
+    for (const p of candidates) {
+      try {
+        if (fs.existsSync(p)) { htmlPath = p; break; }
+      } catch { /* skip */ }
+    }
+
+    if (!htmlPath) {
+      res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Dashboard HTML file not found. Searched:\n' + candidates.join('\n'));
+      return;
+    }
+
+    fs.readFile(htmlPath, 'utf-8', (err, data) => {
+      if (err) {
+        logger.error({ err }, '[Dashboard] Failed to read dashboard HTML');
+        res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('Failed to read dashboard HTML: ' + err.message);
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(data);
+    });
+  }
+
+  /**
+   * 停止服务
+   */
+  stop(): void {
+    if (this.statsTimer) {
+      clearInterval(this.statsTimer);
+      this.statsTimer = null;
+    }
+    for (const client of this.sseClients) {
+      try { client.end(); } catch { /* ignore */ }
+    }
+    this.sseClients.clear();
+    if (this.server) {
+      this.server.close();
+      this.server = null;
+      logger.info('[Dashboard] 控制台已停止');
+    }
+  }
+}

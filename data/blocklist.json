@@ -1,0 +1,26 @@
+{
+  "blockedUsers": [
+    {
+      "userId": 1213573887,
+      "nickname": "憧憬",
+      "groupId": 1080352376,
+      "blockedAt": 1775644531531,
+      "reason": "用户主动屏蔽"
+    },
+    {
+      "userId": 3032318964,
+      "nickname": "贞德",
+      "groupId": 1080352376,
+      "blockedAt": 1775644532836,
+      "reason": "用户主动屏蔽"
+    },
+    {
+      "userId": 2632622430,
+      "nickname": "金桥",
+      "groupId": 1080352376,
+      "blockedAt": 1775646943988,
+      "reason": "Dashboard 手动屏蔽"
+    }
+  ],
+  "blockedGroups": []
+}

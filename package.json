@@ -1,1 +1,62 @@
-{"name":"qq-talker","version":"1.0.0","description":"QQ聊天机器人 - 接入CodeBuddy AI助手","main":"dist/index.js","scripts":{"build":"tsc","start":"node dist/index.js","dev":"ts-node src/index.ts"},"dependencies":{"dotenv":"^16.4.1","edge-tts":"^1.0.1","openai":"^4.28.0","pino":"^8.17.0","pino-pretty":"^11.2.0","ws":"^8.16.0"},"devDependencies":{"@types/node":"^20.11.0","@types/ws":"^8.5.10","ts-node":"^10.9.2","typescript":"^5.3.3"}}
+{
+  "name": "qq-talker",
+  "version": "1.0.0",
+  "description": "QQ聊天机器人 - 接入CodeBuddy AI助手",
+  "main": "dist/index.js",
+  "bin": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "pkg": "tsc && pkg . --compress GZip",
+    "pkg:win": "tsc && pkg . --compress GZip -t node18-win-x64",
+    "pkg:linux": "tsc && pkg . --compress GZip -t node18-linux-x64",
+    "start:console": "powershell -ExecutionPolicy Bypass -File start-with-console.ps1",
+    "start:bat": "start-with-console.bat"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.1",
+    "edge-tts": "^1.0.1",
+    "openai": "^4.28.0",
+    "pino": "^8.17.0",
+    "pino-pretty": "^11.2.0",
+    "silk-wasm": "^3.7.1",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/ws": "^8.5.10",
+    "pptxgenjs": "^4.0.1",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-icons": "^5.6.0",
+    "sharp": "^0.34.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  },
+  "optionalDependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "pkg": "^5.8.1"
+  },
+  "pkg": {
+    "assets": [
+      "node_modules/silk-wasm/**/*",
+      "node_modules/edge-tts/out/**/*",
+      ".env*",
+      "log-analyzer.html",
+      "log-analyzer-advanced.js",
+      "dashboard-preview.html"
+    ],
+    "scripts": [
+      "dist/**/*.js"
+    ],
+    "targets": [
+      "node18-win-x64"
+    ],
+    "outputPath": "dist-pkg",
+    "ignores": [
+      "**/*.ts",
+      "**/*.map"
+    ]
+  }
+}

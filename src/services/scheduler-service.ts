@@ -1,12 +1,14 @@
-import pino from 'pino';
+import { logger } from '../logger';
 import { config } from '../types/config';
 import { OneBotClient } from './onebot-client';
 import { CodeBuddyClient } from './codebuddy-client';
 import { GreetingService } from './greeting-service';
 import { FolkDivinationService } from './folk-divination';
 import { SessionManager } from './session-manager';
+import { DashboardService } from './dashboard-service';
 
-const logger = pino({ level: config.logLevel });
+
+
 
 /** 定时任务配置 */
 interface ScheduledTask {
@@ -57,6 +59,15 @@ export class SchedulerService {
   /** 群活跃记录: groupId => 最后消息时间戳 */
   private groupLastActivity: Map<number, number> = new Map();
 
+  /**
+   * 可选的限速发送函数（由 MessageHandler 注入）
+   * 如果设置了，所有 scheduler 发送都走限速，避免 QQ EventChecker 风控
+   */
+  private rateLimitedSender: ((fn: () => Promise<any>) => Promise<void>) | null = null;
+
+  /** Dashboard 引用（用于活跃群统计） */
+  private dashboard: DashboardService | null = null;
+
   constructor(onebot: OneBotClient, ai: CodeBuddyClient) {
     this.onebot = onebot;
     this.ai = ai;
@@ -71,6 +82,39 @@ export class SchedulerService {
   registerActiveGroup(groupId: number): void {
     this.activeGroups.add(groupId);
     this.groupLastActivity.set(groupId, Date.now());
+    // 同步活跃群到 Dashboard
+    this.dashboard?.setActiveGroups(this.activeGroups);
+  }
+
+  /** 获取当前活跃群列表 */
+  getActiveGroups(): Set<number> {
+    return this.activeGroups;
+  }
+
+  /**
+   * 设置限速发送函数（由 MessageHandler 调用）
+   * 使 scheduler 的插聊/广播也受频率控制
+   */
+  setRateLimitedSender(sender: (fn: () => Promise<any>) => Promise<void>): void {
+    this.rateLimitedSender = sender;
+  }
+
+  /** 设置 Dashboard 引用（用于活跃群统计） */
+  setDashboard(dashboard: DashboardService): void {
+    this.dashboard = dashboard;
+    // 立即同步当前活跃群
+    dashboard.setActiveGroups(this.activeGroups);
+  }
+
+  /**
+   * 内部发送方法：如果有限速 sender 则走限速，否则直接发送
+   */
+  private async sendGroupMsgSafe(groupId: number, message: string): Promise<void> {
+    if (this.rateLimitedSender) {
+      await this.rateLimitedSender(() => this.onebot.sendGroupMsg(groupId, message));
+    } else {
+      await this.onebot.sendGroupMsg(groupId, message);
+    }
   }
 
   /**
@@ -239,7 +283,7 @@ export class SchedulerService {
         return;
       }
 
-      await this.onebot.sendGroupMsg(targetGroup, msg.trim());
+      await this.sendGroupMsgSafe(targetGroup, msg.trim());
 
       logger.info(
         `\u{1f4ac} [AI\u63d2\u804a|\u6709\u4e0a\u4e0b\u6587] -> \u7fa4${targetGroup}: ` +
@@ -288,13 +332,18 @@ export class SchedulerService {
       return;
     }
 
-    for (const groupId of targetGroups) {
+    for (let i = 0; i < targetGroups.length; i++) {
+      const groupId = targetGroups[i];
       try {
-        await this.onebot.sendGroupMsg(groupId, message);
+        await this.sendGroupMsgSafe(groupId, message);
         logger.info(
           `\u{1f4ac} [\u5b9a\u65f6}${type}] -> ${groupId}: ` +
           message.substring(0, 40).replace(/\n/g, ' ')
         );
+        // 群之间增加间隔，避免连续发送触发 EventChecker
+        if (i < targetGroups.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 4000));
+        }
       } catch (err) {
         logger.error({ err, groupId }, `\u5e7f\u64ad${type}\u5931\u8d25`);
       }

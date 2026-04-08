@@ -1,8 +1,9 @@
 import https from 'https';
-import pino from 'pino';
+import { logger } from '../logger';
 import { config } from '../types/config';
 
-const logger = pino({ level: config.logLevel });
+
+
 
 /**
  * TTS 语音合成服务

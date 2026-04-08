@@ -34,6 +34,12 @@ export interface GroupMessage extends OneBotMessage {
   };
 }
 
+export interface PrivateMessage extends OneBotMessage {
+  post_type: 'message';
+  message_type: 'private';
+  sub_type?: 'friend' | 'group' | 'other';
+}
+
 /**
  * API 响应类型
  */
@@ -97,4 +103,25 @@ export function formatAtText(qq: number, text: string): string {
  */
 export function formatRecord(audioBase64: string): string {
   return `[CQ:record,file=base64://${audioBase64}]`;
+}
+
+/**
+ * 检查消息是否包含图片段
+ */
+export function hasImage(message: MessageSegment[]): boolean {
+  return message.some(seg => seg.type === 'image');
+}
+
+/**
+ * 从消息段中提取第一个 image 段的 CQ 码原始字符串
+ */
+export function extractImageCq(message: MessageSegment[]): string | null {
+  for (const seg of message) {
+    if (seg.type === 'image') {
+      // 重建 CQ 码字符串
+      const dataParts = Object.entries(seg.data || {}).map(([k, v]) => `${k}=${v}`);
+      return `[CQ:image,${dataParts.join(',')}]`;
+    }
+  }
+  return null;
 }

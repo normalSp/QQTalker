@@ -1,6 +1,7 @@
-import pino from 'pino';
+import { logger } from '../logger';
 
-const logger = pino({ level: 'info' });
+
+
 
 /**
  * 占卜结果接口

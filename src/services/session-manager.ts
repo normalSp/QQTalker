@@ -1,4 +1,4 @@
-import pino from 'pino';
+import { logger } from '../logger';
 import { config } from '../types/config';
 
 // ChatMessage 接口定义
@@ -10,7 +10,8 @@ export interface ChatMessage {
 /** 会话模式 */
 export type SessionMode = 'personal' | 'group';
 
-const logger = pino({ level: config.logLevel });
+
+
 
 interface Session {
   key: string;

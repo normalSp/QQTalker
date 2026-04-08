@@ -1,7 +1,7 @@
-import pino from 'pino';
-import { config } from '../types/config';
+import { logger } from '../logger';
 
-const logger = pino({ level: config.logLevel });
+
+
 
 /**
  * \u6BCF\u65E5\u95EE\u5019\u670D\u52A1
