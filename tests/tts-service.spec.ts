@@ -77,6 +77,16 @@ describe('tts-service helpers', () => {
     expect(sanitizeTtsText(text)).toBe('Hello! 现在开始播报啦～');
   });
 
+  it('softens trailing wave tails before TTS synthesis', () => {
+    expect(sanitizeTtsText('看这里喵~~~', { softenWaveTails: true })).toBe('看这里喵');
+    expect(sanitizeTtsText('真的嘛～！', { softenWaveTails: true })).toBe('真的嘛！');
+  });
+
+  it('turns inline wave tails into light pauses instead of long drags', () => {
+    expect(sanitizeTtsText('等一下～我马上看', { softenWaveTails: true })).toBe('等一下，我马上看');
+    expect(sanitizeTtsText('诶～ 先别急', { softenWaveTails: true })).toBe('诶，先别急');
+  });
+
   it('softens spoken cute fillers for at-reply while keeping a cute tail', () => {
     const spoken = optimizeSpokenReplyText('喵，喵，今天先别急喵！我们一点点来喵喵！！', {
       scene: 'at-reply',

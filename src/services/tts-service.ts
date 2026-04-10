@@ -424,7 +424,21 @@ export function planVoiceDelivery(
 export type TtsSanitizeOptions = {
   whitelistChars?: string;
   blacklistChars?: string;
+  softenWaveTails?: boolean;
 };
+
+function softenWaveTailsForSpeech(text: string): string {
+  return text
+    .replace(/[~～]+/g, '～')
+    .replace(/～+\s*(?=[。！？!?，,；;：:])/g, '')
+    .replace(/([呀啊啦嘛呢喵哇哦诶欸唉哈])～+(?=$)/gu, '$1')
+    .replace(/～+(?=$)/g, '')
+    .replace(/～+\s*(?=\S)/g, '，')
+    .replace(/，(?=[。！？!?])/g, '')
+    .replace(/，{2,}/g, '，')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 export function sanitizeTtsText(text: string, options: TtsSanitizeOptions = {}): string {
   const protectedChars = Array.from(new Set(Array.from(options.whitelistChars || '')));
@@ -472,6 +486,10 @@ export function sanitizeTtsText(text: string, options: TtsSanitizeOptions = {}):
 
   for (const [token, char] of protectedMap.entries()) {
     sanitized = sanitized.split(token).join(char);
+  }
+
+  if (options.softenWaveTails) {
+    sanitized = softenWaveTailsForSpeech(sanitized);
   }
 
   return sanitized.replace(/\s+/g, ' ').trim();
@@ -635,6 +653,7 @@ function sanitizeWithConfig(text: string): string {
   return sanitizeTtsText(text, {
     whitelistChars: config.ttsSanitizeWhitelist,
     blacklistChars: config.ttsSanitizeBlacklist,
+    softenWaveTails: true,
   });
 }
 
