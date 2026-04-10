@@ -23,8 +23,7 @@
     "voice:rvc:import": "node scripts/voice-training/import-rvc-artifacts.mjs",
     "voice:eval": "node scripts/voice-training/run-ab-eval.mjs",
     "start:stack": "powershell -ExecutionPolicy Bypass -File start-voice-stack.ps1",
-    "start:console": "powershell -ExecutionPolicy Bypass -File start-with-console.ps1",
-    "start:bat": "start-with-console.bat"
+    "start:launcher": "launch-qqtalker.bat"
   },
   "dependencies": {
     "dotenv": "^16.4.1",
@@ -65,7 +64,6 @@
       "dashboard-assets/**/*",
       "log-analyzer.html",
       "log-analyzer-assets/**/*",
-      "log-analyzer-advanced.js",
       "dashboard-preview.html"
     ],
     "scripts": [

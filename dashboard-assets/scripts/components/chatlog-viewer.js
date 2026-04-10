@@ -1,5 +1,90 @@
 export function createChatlogViewer(options) {
   const { api, esc } = options;
+  const qqFaceFallbackMap = {
+    14: '😁',
+    16: '😎',
+    21: '😭',
+    33: '😡',
+    39: '😴',
+    63: '🥀',
+    66: '❤️',
+    74: '🌞',
+    76: '💪',
+    96: '🌹',
+    111: '🍉',
+    116: '👍',
+    124: '🎉',
+    144: '😳',
+    147: '😤',
+    174: '🥳',
+  };
+
+  function parseCqData(raw) {
+    return String(raw || '').split(',').reduce(function(acc, part) {
+      const eqIndex = part.indexOf('=');
+      if (eqIndex <= 0) return acc;
+      const key = part.slice(0, eqIndex).trim();
+      const value = part.slice(eqIndex + 1).trim();
+      if (key) acc[key] = value;
+      return acc;
+    }, {});
+  }
+
+  function escapePlainText(text) {
+    return esc(text || '').replace(/\r?\n/g, '<br>');
+  }
+
+  function codePointToEmoji(id) {
+    const value = Number(id);
+    if (!Number.isInteger(value) || value <= 0 || value > 0x10ffff) return '';
+    try {
+      return String.fromCodePoint(value);
+    } catch {
+      return '';
+    }
+  }
+
+  function renderMessageHtml(text) {
+    const source = String(text || '');
+    if (!source) return '';
+
+    let html = '';
+    let lastIndex = 0;
+    const cqPattern = /\[CQ:([a-zA-Z]+),([^\]]*)\]/g;
+    let match;
+
+    while ((match = cqPattern.exec(source))) {
+      html += escapePlainText(source.slice(lastIndex, match.index));
+      const type = String(match[1] || '').toLowerCase();
+      const data = parseCqData(match[2]);
+
+      if (type === 'at') {
+        const label = '@' + (data.qq || 'unknown');
+        html += '<span class="chatlog-inline-mention">' + esc(label) + '</span>';
+      } else if (type === 'emoji') {
+        const emoji = codePointToEmoji(data.id) || '🙂';
+        html += '<span class="chatlog-inline-emoji" title="Emoji">' + esc(emoji) + '</span>';
+      } else if (type === 'face') {
+        const emoji = qqFaceFallbackMap[data.id] || '🙂';
+        html += '<span class="chatlog-inline-emoji" title="QQ表情 #' + esc(data.id || '?') + '">' + esc(emoji) + '</span>';
+      } else if (type === 'image') {
+        html += '<span class="chatlog-inline-token">[图片]</span>';
+      } else if (type === 'record') {
+        html += '<span class="chatlog-inline-token">[语音]</span>';
+      } else if (type === 'reply') {
+        html += '<span class="chatlog-inline-token">[回复]</span>';
+      } else if (type === 'forward') {
+        html += '<span class="chatlog-inline-token">[合并转发]</span>';
+      } else {
+        html += '<span class="chatlog-inline-token">[' + esc(type) + ']</span>';
+      }
+
+      lastIndex = match.index + match[0].length;
+    }
+
+    html += escapePlainText(source.slice(lastIndex));
+    return html;
+  }
 
   function proxyImage(url) {
     if (!url || !url.startsWith('http')) return url || '';
@@ -83,7 +168,7 @@ export function createChatlogViewer(options) {
       let html = '';
       data.messages.forEach(function(msg) {
         const timeStr = msg.time ? new Date(msg.time * 1000).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
-        const content = msg.content ? esc(msg.content) : '<span style="color:var(--text-muted);font-style:italic;">[无内容]</span>';
+        const content = msg.content ? renderMessageHtml(msg.content) : '<span style="color:var(--text-muted);font-style:italic;">[无内容]</span>';
         html += '<div class="chatlog-forward-item">'
           + '<div class="chatlog-forward-item-header">'
           + '<span class="chatlog-forward-item-sender">' + esc(msg.sender) + '</span>'
@@ -114,6 +199,7 @@ export function createChatlogViewer(options) {
 
   return {
     proxyImage,
+    renderMessageHtml,
     fixReplyContents,
     openChatLogLightbox,
     loadForwardMsg,

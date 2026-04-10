@@ -69,17 +69,22 @@ http://localhost:3180
 
 ### 控制台启动说明
 
-如果遇到控制台乱码或闪退问题：
+推荐直接双击根目录的：
 
-**使用 PowerShell 脚本（推荐）**：
-```powershell
-# 右键点击 start-with-console-ps1.ps1
-# 选择"使用 PowerShell 运行"
+```bat
+launch-qqtalker.bat
 ```
 
-**使用修复后的批处理**：
-```bash
-start-with-console-fixed.bat
+这个入口会统一拉起：
+
+- `GPT-SoVITS`
+- `voice-service`
+- `QQTalker`
+
+如果你更习惯命令行，也可以执行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File start-voice-stack.ps1
 ```
 
 ---

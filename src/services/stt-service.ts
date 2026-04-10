@@ -171,15 +171,11 @@ export class STTService {
         if (converted) {
           processPath = converted;
         } else {
-          // 转换失败时，对于 silk 格式尝试转码为 PCM 并封装为 WAV
           if (realFormat === 'silk') {
-            const pcmWav = await this.silkToPcmWav(finalPath);
-            if (pcmWav) {
-              processPath = pcmWav;
-            } else {
-              logger.warn(`[STT] SILK 转换全部失败，尝试直接发送原始文件`);
-              // 最后尝试：某些 API 可能支持，但概率很低
-            }
+            // 这里不能再回退到“近似波形”伪解码，否则会把垃圾音频送给 STT，
+            // 经常得到日语或乱码结果。宁可明确失败，也不要生成错误转写。
+            logger.warn('[STT] SILK 语音未能完成有效解码，已跳过本次转写');
+            return null;
           } else {
             logger.warn(`[STT] 格式转换失败 (${realFormat})，尝试直接发送...`);
           }
@@ -378,6 +374,13 @@ export class STTService {
       } catch (e) {
         logger.warn(`[STT] SILK 原生解码失败: ${(e instanceof Error ? e.message : String(e)).substring(0, 80)}`);
       }
+
+      try {
+        const result = await this.silkDecoderWasm(audioPath);
+        if (result) return result;
+      } catch (e) {
+        logger.warn(`[STT] SILK WASM 解码失败: ${(e instanceof Error ? e.message : String(e)).substring(0, 80)}`);
+      }
     }
 
     // 策略3：内置 AMR → WAV 纯 JS 转换（仅支持标准 AMR-NB）
@@ -416,9 +419,7 @@ export class STTService {
    */
   private async silkDecoderNative(silkPath: string): Promise<string | null> {
     // 查找解码器路径
-    const decoderPaths = [
-      path.resolve(process.cwd(), 'tools', 'silk-decoder', 'silk_v3_decoder.exe'),
-    ];
+    const decoderPaths = this.findToolCandidates(path.join('silk-decoder', 'silk_v3_decoder.exe'));
 
     let decoder: string | null = null;
     for (const p of decoderPaths) {
@@ -467,6 +468,65 @@ export class STTService {
       try { if (fs.existsSync(pcmPath)) fs.unlinkSync(pcmPath); } catch {}
       return null;
     }
+  }
+
+  /**
+   * SILK v3 → WAV 转换：使用 silk-wasm 在 Node 端做真实解码
+   *
+   * 当本地没有 silk_v3_decoder.exe 时，这是最稳妥的项目内回退方案。
+   */
+  private async silkDecoderWasm(silkPath: string): Promise<string | null> {
+    let silkWasm: {
+      decode: (input: ArrayBufferView | ArrayBuffer, sampleRate: number) => Promise<{ data: Uint8Array; duration: number }>;
+    };
+    try {
+      silkWasm = require('silk-wasm');
+    } catch {
+      logger.debug('[STT] 未安装 silk-wasm，跳过 WASM 解码');
+      return null;
+    }
+
+    const silkData = fs.readFileSync(silkPath);
+    if (!silkData.length) {
+      return null;
+    }
+
+    const sampleRateCandidates = [24000, 16000, 12000, 8000];
+    let bestResult: { pcm: Buffer; sampleRate: number; duration: number; durationDelta: number } | null = null;
+
+    for (const sampleRate of sampleRateCandidates) {
+      try {
+        const decoded = await silkWasm.decode(silkData, sampleRate);
+        const pcm = Buffer.from(decoded.data);
+        if (!pcm.length) continue;
+
+        const pcmDuration = Math.round((pcm.length / 2 / sampleRate) * 1000);
+        const declaredDuration = Math.max(0, Math.round(decoded.duration || 0));
+        const durationDelta = declaredDuration > 0 ? Math.abs(pcmDuration - declaredDuration) : 0;
+
+        if (!bestResult || durationDelta < bestResult.durationDelta) {
+          bestResult = {
+            pcm,
+            sampleRate,
+            duration: declaredDuration || pcmDuration,
+            durationDelta,
+          };
+        }
+      } catch (error) {
+        logger.debug(`[STT] silk-wasm 解码尝试失败 (${sampleRate}Hz): ${(error instanceof Error ? error.message : String(error)).substring(0, 80)}`);
+      }
+    }
+
+    if (!bestResult || bestResult.pcm.length <= 320) {
+      return null;
+    }
+
+    const wavPath = path.join(this.tmpDir, `silk_wasm_${Date.now()}.wav`);
+    this.writeWavFile(wavPath, bestResult.pcm, bestResult.sampleRate, 1, 16);
+
+    const wavSize = fs.statSync(wavPath).size;
+    logger.info(`[STT] SILK WASM 解码成功: ${path.basename(wavPath)} (${Math.round(wavSize / 1024)}KB, ${bestResult.sampleRate}Hz, ${bestResult.duration}ms)`);
+    return wavPath;
   }
 
   /** 将原始 PCM 数据封装为标准 WAV 文件 */
@@ -651,22 +711,22 @@ export class STTService {
    */
   private findFFmpeg(): string[] {
     const found: string[] = [];
-    
-    // 最高优先级: 项目本地完整版 ffmpeg（支持 SILK 解码）
-    const localFullFfmpeg = path.resolve(process.cwd(), 'ffmpeg-release-full', 'ffmpeg-8.1-full_build', 'bin', 'ffmpeg.exe');
-    if (fs.existsSync(localFullFfmpeg)) {
-      found.push(localFullFfmpeg);
+
+    for (const localFullFfmpeg of this.findToolCandidates(path.join('ffmpeg-release-full', 'ffmpeg-8.1-full_build', 'bin', 'ffmpeg.exe'))) {
+      if (fs.existsSync(localFullFfmpeg) && !found.includes(localFullFfmpeg)) {
+        found.push(localFullFfmpeg);
+      }
     }
-    
+
     // 次高: npm @ffmpeg-installer/ffmpeg
     if (ffmpegPath && fs.existsSync(ffmpegPath)) {
       found.push(ffmpegPath);
     }
-    
-    // 项目本地 tools 目录
-    const localTools = path.resolve(process.cwd(), 'tools', 'ffmpeg.exe');
-    if (fs.existsSync(localTools)) {
-      found.push(localTools);
+
+    for (const localTools of this.findToolCandidates('ffmpeg.exe')) {
+      if (fs.existsSync(localTools) && !found.includes(localTools)) {
+        found.push(localTools);
+      }
     }
 
     // 系统 PATH
@@ -685,6 +745,31 @@ export class STTService {
     }
 
     return found;
+  }
+
+  private findToolCandidates(relativePath: string): string[] {
+    const roots = [
+      process.cwd(),
+      path.resolve(process.cwd(), 'tools'),
+      path.resolve(process.cwd(), '..'),
+      path.resolve(process.cwd(), '..', 'tools'),
+      path.resolve(process.cwd(), '..', '..'),
+      path.resolve(process.cwd(), '..', '..', 'tools'),
+      path.resolve(process.cwd(), '..', '..', '..'),
+      path.resolve(process.cwd(), '..', '..', '..', 'tools'),
+    ];
+
+    const normalizedRelative = relativePath.replace(/[\\/]+/g, path.sep);
+    const candidates: string[] = [];
+
+    for (const root of roots) {
+      const candidate = path.resolve(root, normalizedRelative);
+      if (!candidates.includes(candidate)) {
+        candidates.push(candidate);
+      }
+    }
+
+    return candidates;
   }
 
   /**
@@ -823,11 +908,17 @@ export class STTService {
     // 构造 multipart/form-data body
     const boundary = '----STTBoundary' + Date.now().toString(36);
     const parts: Buffer[] = [];
+    const appendField = (name: string, value: string) => {
+      parts.push(Buffer.from(
+        `--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`
+      ));
+    };
 
     // model 字段
-    parts.push(Buffer.from(
-      `--${boundary}\r\nContent-Disposition: form-data; name="model"\r\n\r\n${this.model}\r\n`
-    ));
+    appendField('model', this.model);
+    // 大多数实际语音都是中文群聊，明确指定语言可显著降低被误判成日语的概率。
+    appendField('language', 'zh');
+    appendField('prompt', '以下音频主要为中文普通话群聊语音，请优先输出简体中文文本。');
 
     // file 字段
     const mimeType = this.getMimeType(this.getExtension(audioPath));
@@ -874,7 +965,13 @@ export class STTService {
 
           try {
             const json = JSON.parse(data);
-            const text = (json.text || '').trim();
+            const text = String(
+              json.text ??
+              json.result ??
+              json.transcript ??
+              json.data?.text ??
+              ''
+            ).trim();
             if (text) {
               logger.info(`[STT] 识别结果: "${text.substring(0, 50)}"`);
             } else {

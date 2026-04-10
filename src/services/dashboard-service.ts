@@ -481,114 +481,136 @@ export class DashboardService {
    * GET /api/image-proxy?url=<encodedUrl>
    */
   private handleImageProxy(req: http.IncomingMessage, res: http.ServerResponse, params: URLSearchParams): void {
-    let targetUrl = params.get('url');
+    const targetUrl = params.get('url');
     if (!targetUrl) {
       res.writeHead(400, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Missing url parameter' }));
       return;
     }
+    const normalizedUrl = targetUrl.replace(/&amp;/g, '&');
+    const redirectStatuses = new Set([301, 302, 303, 307, 308]);
 
-    // 修复 URL 中可能残留的 HTML 实体编码（&amp; -> &）
-    targetUrl = targetUrl.replace(/&amp;/g, '&');
-
-    // 安全校验：只允许 QQ 域名的图片
-    let parsedUrl: URL;
-    try {
-      parsedUrl = new URL(targetUrl);
-    } catch {
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Invalid URL' }));
-      return;
-    }
-
-    const allowedHosts = [
-      'multimedia.nt.qq.com.cn',
-      'multimedia.qq.com',
-      'gchat.qpic.cn',
-      'c2cpicdw.qpic.cn',
-      'qpic.cn',
-    ];
-    const isAllowed = allowedHosts.some(h => parsedUrl.hostname === h || parsedUrl.hostname.endsWith('.' + h));
-    if (!isAllowed) {
-      res.writeHead(403, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Domain not allowed' }));
-      return;
-    }
-
-    // 检查缓存
-    const cached = this.imageCache.get(targetUrl);
-    if (cached && (Date.now() - cached.timestamp) < this.IMAGE_CACHE_TTL) {
+    const respondWithBuffer = (buffer: Buffer, contentType: string) => {
       res.writeHead(200, {
-        'Content-Type': cached.contentType,
-        'Content-Length': cached.buffer.length,
+        'Content-Type': contentType,
+        'Content-Length': buffer.length,
         'Cache-Control': 'public, max-age=1800',
         'Access-Control-Allow-Origin': '*',
       });
-      res.end(cached.buffer);
+      res.end(buffer);
+    };
+
+    const isAllowedImageHost = (candidateUrl: string): URL | null => {
+      try {
+        const parsedUrl = new URL(candidateUrl);
+        const allowedHosts = [
+          'multimedia.nt.qq.com.cn',
+          'multimedia.qq.com',
+          'gchat.qpic.cn',
+          'c2cpicdw.qpic.cn',
+          'qpic.cn',
+        ];
+        const isAllowed = allowedHosts.some(h => parsedUrl.hostname === h || parsedUrl.hostname.endsWith('.' + h));
+        return isAllowed ? parsedUrl : null;
+      } catch {
+        return null;
+      }
+    };
+
+    const cached = this.imageCache.get(normalizedUrl);
+    if (cached && (Date.now() - cached.timestamp) < this.IMAGE_CACHE_TTL) {
+      respondWithBuffer(cached.buffer, cached.contentType);
       return;
     }
 
-    // 请求远程图片
-    const isHttps = parsedUrl.protocol === 'https:';
-    const mod = isHttps ? https : http;
-
-    const proxyReq = mod.request(targetUrl, {
-      method: 'GET',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) QQ/9.9.12 Chrome/120.0.0.0 Safari/537.36',
-        'Referer': 'https://qun.qq.com/',
-      },
-      timeout: 15000,
-    }, (proxyRes) => {
-      if (proxyRes.statusCode !== 200) {
-        res.writeHead(502, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: `Upstream returned ${proxyRes.statusCode}` }));
+    const fetchRemoteImage = (currentUrl: string, redirectDepth = 0): void => {
+      const parsedUrl = isAllowedImageHost(currentUrl);
+      if (!parsedUrl) {
+        res.writeHead(redirectDepth > 0 ? 502 : 403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: redirectDepth > 0 ? 'Redirected to disallowed domain' : 'Domain not allowed' }));
         return;
       }
 
-      const chunks: Buffer[] = [];
-      proxyRes.on('data', (chunk) => chunks.push(chunk));
-      proxyRes.on('end', () => {
-        const imageBuffer = Buffer.concat(chunks);
+      if (redirectDepth > 4) {
+        res.writeHead(502, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Too many image redirects' }));
+        return;
+      }
 
-        // 限制缓存大小（最大5MB）
-        if (imageBuffer.length > 0 && imageBuffer.length <= 5 * 1024 * 1024) {
-          const contentType = proxyRes.headers['content-type'] || 'image/jpeg';
-          // 淘汰旧缓存
-          if (this.imageCache.size >= this.IMAGE_CACHE_MAX) {
-            const oldestKey = this.imageCache.keys().next().value;
-            if (oldestKey) this.imageCache.delete(oldestKey);
+      const mod = parsedUrl.protocol === 'https:' ? https : http;
+      const proxyReq = mod.request(parsedUrl, {
+        method: 'GET',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36',
+          'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+          'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+          'Referer': 'https://im.qq.com/',
+          'Origin': 'https://im.qq.com',
+        },
+        timeout: 15000,
+      }, (proxyRes) => {
+        const statusCode = proxyRes.statusCode || 0;
+        if (redirectStatuses.has(statusCode)) {
+          const location = proxyRes.headers.location;
+          proxyRes.resume();
+          if (!location) {
+            res.writeHead(502, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: `Redirect without location (${statusCode})` }));
+            return;
           }
-          this.imageCache.set(targetUrl, { buffer: imageBuffer, contentType, timestamp: Date.now() });
+          const nextUrl = new URL(location, parsedUrl).toString();
+          fetchRemoteImage(nextUrl, redirectDepth + 1);
+          return;
         }
 
-        res.writeHead(200, {
-          'Content-Type': proxyRes.headers['content-type'] || 'image/jpeg',
-          'Content-Length': imageBuffer.length,
-          'Cache-Control': 'public, max-age=1800',
-          'Access-Control-Allow-Origin': '*',
+        if (statusCode < 200 || statusCode >= 300) {
+          logger.warn({ statusCode, currentUrl }, '[ImageProxy] Upstream returned non-success status');
+          proxyRes.resume();
+          res.writeHead(502, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: `Upstream returned ${statusCode}` }));
+          return;
+        }
+
+        const chunks: Buffer[] = [];
+        proxyRes.on('data', (chunk) => chunks.push(chunk));
+        proxyRes.on('end', () => {
+          const imageBuffer = Buffer.concat(chunks);
+          const contentType = String(proxyRes.headers['content-type'] || 'image/jpeg');
+
+          if (imageBuffer.length > 0 && imageBuffer.length <= 5 * 1024 * 1024) {
+            if (this.imageCache.size >= this.IMAGE_CACHE_MAX) {
+              const oldestKey = this.imageCache.keys().next().value;
+              if (oldestKey) this.imageCache.delete(oldestKey);
+            }
+            this.imageCache.set(normalizedUrl, { buffer: imageBuffer, contentType, timestamp: Date.now() });
+          }
+
+          respondWithBuffer(imageBuffer, contentType);
         });
-        res.end(imageBuffer);
       });
-    });
 
-    proxyReq.on('error', (err) => {
-      logger.debug(`[ImageProxy] 请求失败: ${err.message}`);
-      if (!res.headersSent) {
-        res.writeHead(502, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Proxy request failed' }));
-      }
-    });
+      proxyReq.on('error', (err) => {
+        logger.warn({ err, currentUrl }, '[ImageProxy] Proxy request failed');
+        if (!res.headersSent) {
+          res.writeHead(502, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Proxy request failed' }));
+        }
+      });
 
-    proxyReq.on('timeout', () => {
-      proxyReq.destroy();
-      if (!res.headersSent) {
-        res.writeHead(504, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Proxy timeout' }));
-      }
-    });
+      proxyReq.on('timeout', () => {
+        proxyReq.destroy();
+        if (!res.headersSent) {
+          res.writeHead(504, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Proxy timeout' }));
+        }
+      });
 
-    proxyReq.end();
+      proxyReq.end();
+    };
+
+    fetchRemoteImage(normalizedUrl);
   }
 
   /**
@@ -792,12 +814,72 @@ export class DashboardService {
       const voiceSendRe = /^\[@语音\] 群(\d+) 语音追加发送成功$/;
       // 匹配STT结果: [STT] 识别结果: xxx
       const sttRe = /^\[STT\] 识别结果: (.+)$/;
+      // 匹配更上层的识别摘要日志: 🎤 [语音识别] 昵称: "内容"
+      const sttSummaryRe = /^🎤 \[语音识别\] (.+?): "(.+)"$/;
 
       const lines = content.split('\n');
       let pendingUserId = '';
       let pendingGroupId = '';
       let pendingTime = 0;
       let pendingMessageId = '';
+
+      const normalizeVoiceText = (value: string): string => {
+        const text = String(value || '').trim();
+        if (!text) return '';
+        return text.replace(/^["“”]+|["“”]+$/g, '').trim();
+      };
+
+      const findNearbyVoiceTranscript = (
+        startIndex: number,
+        messageTime: number,
+        nickname: string,
+      ): string | undefined => {
+        let crossedIntoAnotherEvent = false;
+        for (let j = startIndex + 1; j < Math.min(startIndex + 80, lines.length); j++) {
+          const nextLine = lines[j].trim();
+          if (!nextLine.startsWith('{')) continue;
+          try {
+            const nextObj = JSON.parse(nextLine);
+            const nextMsg = String(nextObj.msg || '');
+            const nextTime = nextObj.time || 0;
+
+            if (nextMsg.match(msgEventRe)) {
+              crossedIntoAnotherEvent = true;
+              continue;
+            }
+
+            if (messageTime > 0 && nextTime > 0 && nextTime - messageTime > 15000) {
+              break;
+            }
+
+            if (crossedIntoAnotherEvent && nextMsg.startsWith('   raw_message:')) {
+              const rawMatch = nextMsg.match(rawMsgRe);
+              const otherRaw = rawMatch ? rawMatch[1] : nextMsg;
+              if (otherRaw.includes('[CQ:record,') || otherRaw.includes('[CQ:voice,')) {
+                break;
+              }
+            }
+
+            const sttMatch = nextMsg.match(sttRe);
+            if (sttMatch) {
+              const sttText = normalizeVoiceText(sttMatch[1]);
+              if (sttText) return sttText;
+            }
+
+            const sttSummaryMatch = nextMsg.match(sttSummaryRe);
+            if (sttSummaryMatch) {
+              const sttNickname = String(sttSummaryMatch[1] || '').trim();
+              const sttText = normalizeVoiceText(sttSummaryMatch[2]);
+              if (sttText && (!nickname || !sttNickname || sttNickname === nickname)) {
+                return sttText;
+              }
+            }
+          } catch {
+            continue;
+          }
+        }
+        return undefined;
+      };
 
       // 第一遍：收集 昵称->userId 映射（单遍扫描，向前回溯最多20行）
       // 被动插话日志紧跟在 消息事件+raw_message 之后
@@ -905,25 +987,16 @@ export class DashboardService {
           } else if (content.includes('[CQ:record,')) {
             messageType = 'voice';
             content = '[语音消息]';
-            let voiceText: string | undefined;
-            // 查找后续STT结果（扩大搜索范围以匹配异步日志）
-            for (let j = i + 1; j < Math.min(i + 50, lines.length); j++) {
-              try {
-                const nextObj = JSON.parse(lines[j].trim());
-                const nextMsg = String(nextObj.msg || '');
-                if (nextMsg.startsWith('[STT] 识别结果:')) {
-                  const sttText = nextMsg.replace('[STT] 识别结果: ', '');
-                  content = sttText;
-                  voiceText = sttText;
-                  break;
-                }
-              } catch { continue; }
+            const currentNickname = nicknameMap.get(pendingUserId) || '';
+            const voiceText = findNearbyVoiceTranscript(i, pendingTime, currentNickname);
+            if (voiceText) {
+              content = voiceText;
             }
             messages.push({
               time: pendingTime,
               groupId: pendingGroupId,
               userId: pendingUserId,
-              nickname: nicknameMap.get(pendingUserId) || '',
+              nickname: currentNickname,
               rawMessage: rawContent,
               messageType,
               content: content || '[语音消息]',

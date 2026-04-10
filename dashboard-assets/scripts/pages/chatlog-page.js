@@ -84,7 +84,7 @@ export function createChatlogPageController(options) {
       const avatarChar = m.nickname ? m.nickname.charAt(0) : (m.userId ? m.userId.charAt(0) : '?');
       const avatarColor = isBot ? '' : 'background:' + getUserColor(m.userId || m.nickname || idx);
       let typeTag = '';
-      let contentHtml = esc(m.content || '');
+      let contentHtml = viewer.renderMessageHtml(m.content || '');
       let extraHtml = '';
 
       if (m.messageType === 'image') {
@@ -95,7 +95,8 @@ export function createChatlogPageController(options) {
           if (rawUrlMatch && rawUrlMatch[1].startsWith('http')) imgUrl = rawUrlMatch[1];
         }
         if (imgUrl && imgUrl.startsWith('http')) {
-          extraHtml = '<div class="chatlog-image-wrap"><img class="chatlog-image" src="' + esc(viewer.proxyImage(imgUrl)) + '" onclick="openChatLogLightbox(\'' + esc(imgUrl).replace(/'/g, "\\'") + '\')" loading="lazy" onerror="this.parentElement.innerHTML=\'<div class=chatlog-image-error><i class=fas fa-image></i><span>图片加载失败</span></div>\'"></div>';
+          const proxiedImgUrl = viewer.proxyImage(imgUrl);
+          extraHtml = '<div class="chatlog-image-wrap"><img class="chatlog-image" src="' + esc(proxiedImgUrl) + '" data-proxy-src="' + esc(proxiedImgUrl) + '" data-direct-src="' + esc(imgUrl) + '" onclick="openChatLogLightbox(\'' + esc(imgUrl).replace(/'/g, "\\'") + '\')" loading="lazy" onerror="if(!this.dataset.directTried){this.dataset.directTried=\'1\';this.src=this.dataset.directSrc;return;} this.parentElement.innerHTML=\'<div class=chatlog-image-error><i class=fas fa-image></i><span>图片加载失败</span></div>\'"></div>';
         } else {
           contentHtml = '<span style="color:var(--text-muted);font-size:12px;"><i class="fas fa-image" style="margin-right:4px;"></i>图片URL不可用</span>';
         }
@@ -128,7 +129,8 @@ export function createChatlogPageController(options) {
             + '</div>' + contentHtml;
         }
         if (m.imageUrl) {
-          extraHtml = '<div class="chatlog-image-wrap"><img class="chatlog-image" src="' + esc(viewer.proxyImage(m.imageUrl)) + '" onclick="openChatLogLightbox(\'' + esc(m.imageUrl).replace(/'/g, "\\'") + '\')" loading="lazy" onerror="this.parentElement.innerHTML=\'<span style=&quot;color:var(--text-muted);font-size:12px;&quot;>图片加载失败</span>\'"></div>';
+          const proxiedMixedImgUrl = viewer.proxyImage(m.imageUrl);
+          extraHtml = '<div class="chatlog-image-wrap"><img class="chatlog-image" src="' + esc(proxiedMixedImgUrl) + '" data-proxy-src="' + esc(proxiedMixedImgUrl) + '" data-direct-src="' + esc(m.imageUrl) + '" onclick="openChatLogLightbox(\'' + esc(m.imageUrl).replace(/'/g, "\\'") + '\')" loading="lazy" onerror="if(!this.dataset.directTried){this.dataset.directTried=\'1\';this.src=this.dataset.directSrc;return;} this.parentElement.innerHTML=\'<span style=&quot;color:var(--text-muted);font-size:12px;&quot;>图片加载失败</span>\'"></div>';
         }
       }
 
