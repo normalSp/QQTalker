@@ -472,53 +472,70 @@ export class MessageHandler {
     );
 
     const replyWithAt = formatAtText(groupMsg.user_id, reply);
+    await this.sendAiReplyWithOptionalVoice(groupMsg, reply, {
+      textReply: replyWithAt,
+      ttsScene: 'at-reply',
+      allowVoice: true,
+      logPrefix: '[@流程]',
+      voiceLogLabel: '[@语音]',
+    });
+  }
 
-    // TTS - 语音合成与发送（优化：先发文字确保快速响应，语音后台合成后追加）
-    if (this.tts.isEnabled()) {
-      // 先立即发送文字回复（用户最先看到）
-      logger.debug('[@流程] 3/4 先发送文字回复...');
+  private async sendAiReplyWithOptionalVoice(
+    groupMsg: GroupMessage,
+    rawReply: string,
+    options: {
+      textReply: string;
+      ttsScene: 'at-reply' | 'passive-reply';
+      allowVoice: boolean;
+      logPrefix: string;
+      voiceLogLabel: string;
+    }
+  ): Promise<void> {
+    const { textReply, ttsScene, allowVoice, logPrefix, voiceLogLabel } = options;
+    const shouldSendVoice = allowVoice && this.tts.isEnabled();
+
+    if (shouldSendVoice) {
+      logger.debug(`${logPrefix} 3/4 先发送文字回复...`);
       try {
-        await this.sendReply(groupMsg, replyWithAt);
-        logger.info(`[@回复完成] 群${groupMsg.group_id} 文字发送成功`);
+        await this.sendReply(groupMsg, textReply);
+        logger.info(`${logPrefix} 群${groupMsg.group_id} 文字发送成功`);
       } catch (e) {
         logger.warn({ error: e }, '文字发送失败');
       }
 
-      // 后台合成语音，不阻塞主流程
-      logger.debug('[@流程] 4/4 后台TTS合成...');
+      logger.debug(`${logPrefix} 4/4 后台TTS合成...`);
       this.dashboard?.recordTtsCall();
       const spokenCharacter =
         config.ttsGroupVoiceRoleMap[String(groupMsg.group_id)] ||
         config.ttsDefaultCharacter;
-      const spokenReply = optimizeSpokenReplyText(reply, {
-        scene: 'at-reply',
+      const spokenReply = optimizeSpokenReplyText(rawReply, {
+        scene: ttsScene,
         character: spokenCharacter,
       });
-      this.tts.textToSpeech(spokenReply || reply, {
-        scene: 'at-reply',
+      this.tts.textToSpeech(spokenReply || rawReply, {
+        scene: ttsScene,
         allowExperimental: false,
         groupId: groupMsg.group_id,
       }).then(async (audioBuffer) => {
         if (!audioBuffer || audioBuffer.length <= 1024) return;
-        
         const base64Audio = audioBuffer.toString('base64');
         const recordCq = formatRecord(base64Audio);
         try {
           await this.sendReply(groupMsg, recordCq);
-          logger.info(`[@语音] 群${groupMsg.group_id} 语音追加发送成功`);
+          logger.info(`${voiceLogLabel} 群${groupMsg.group_id} 语音追加发送成功`);
         } catch (e) {
           logger.warn({ error: e }, '语音追加发送失败');
         }
       }).catch((ttsErr) => {
         logger.warn({ error: ttsErr }, 'TTS合成失败（文字已发送）');
       });
-      
-      return; // 文字已发送，直接返回
+      return;
     }
 
-    logger.debug('[@流程] 4/4 发送纯文字回复...');
-    await this.sendReply(groupMsg, replyWithAt);
-    logger.info(`[@回复完成] 群${groupMsg.group_id} 文字发送成功`);
+    logger.debug(`${logPrefix} 4/4 发送纯文字回复...`);
+    await this.sendReply(groupMsg, textReply);
+    logger.info(`${logPrefix} 群${groupMsg.group_id} 文字发送成功`);
   }
 
   /**
@@ -574,19 +591,25 @@ export class MessageHandler {
       return;
     }
 
-    // 只发送文字，不@任何人（因为是主动插聊）
-    await this.sendReply(groupMsg, reply.trim());
+    const passiveReply = reply.trim();
+    await this.sendAiReplyWithOptionalVoice(groupMsg, passiveReply, {
+      textReply: passiveReply,
+      ttsScene: 'passive-reply',
+      allowVoice: config.ttsReplyMode === 'all-replies',
+      logPrefix: '[被动流程]',
+      voiceLogLabel: '[被动语音]',
+    });
 
     // 保存到上下文
     this.sessionManager.addMessage(
       groupMsg.group_id, groupMsg.user_id,
-      { role: 'assistant', content: '[Claw\u4e3b\u52a8\u63d2\u8bdd]: ' + reply.trim() },
+      { role: 'assistant', content: '[Claw\u4e3b\u52a8\u63d2\u8bdd]: ' + passiveReply },
       mode
     );
 
     logger.info(
       '\uD83D\uDCE8 [\u88ab\u52a8\u56de\u590d] -> \u7fa4' + groupMsg.group_id +
-      ': ' + reply.trim().substring(0, 40)
+      ': ' + passiveReply.substring(0, 40)
     );
   }
 

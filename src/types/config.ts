@@ -61,6 +61,7 @@ export const config = {
   ttsModelDir: process.env.TTS_MODEL_DIR || './data/voice-models',
   ttsVoice: process.env.TTS_VOICE || 'zh-CN-XiaoyiNeural',
   ttsSpeed: parseFloat(process.env.TTS_SPEED || '1.0'),
+  ttsReplyMode: (process.env.TTS_REPLY_MODE || 'mention-only') as 'mention-only' | 'all-replies',
   ttsStyle: process.env.TTS_STYLE || 'natural',
   ttsSanitizeWhitelist: process.env.TTS_SANITIZE_WHITELIST || '',
   ttsSanitizeBlacklist: process.env.TTS_SANITIZE_BLACKLIST || '',

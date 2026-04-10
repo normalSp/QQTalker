@@ -4,6 +4,8 @@ const path = require('path');
 
 const port = 43180;
 const htmlPath = path.resolve(__dirname, '..', '..', 'dashboard-preview.html');
+const dashboardAssetsPath = path.resolve(__dirname, '..', '..', 'dashboard-assets');
+const logAnalyzerAssetsPath = path.resolve(__dirname, '..', '..', 'log-analyzer-assets');
 
 const chartStub = `
 <script>
@@ -129,12 +131,41 @@ function serveHtml(res) {
   res.end(html);
 }
 
+function contentType(filePath) {
+  if (filePath.endsWith('.css')) return 'text/css; charset=utf-8';
+  if (filePath.endsWith('.js')) return 'text/javascript; charset=utf-8';
+  if (filePath.endsWith('.html')) return 'text/html; charset=utf-8';
+  return 'application/octet-stream';
+}
+
+function serveStatic(res, rootDir, pathname, prefix) {
+  const relativePath = pathname.slice(prefix.length);
+  const filePath = path.join(rootDir, relativePath);
+  if (!filePath.startsWith(rootDir) || !fs.existsSync(filePath)) {
+    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Not Found');
+    return;
+  }
+  res.writeHead(200, { 'Content-Type': contentType(filePath) });
+  res.end(fs.readFileSync(filePath));
+}
+
 http.createServer(async (req, res) => {
   const url = new URL(req.url || '/', `http://127.0.0.1:${port}`);
   const pathname = url.pathname;
 
   if (pathname === '/' || pathname === '/index.html') {
     serveHtml(res);
+    return;
+  }
+
+  if (pathname.startsWith('/dashboard-assets/')) {
+    serveStatic(res, dashboardAssetsPath, pathname, '/dashboard-assets/');
+    return;
+  }
+
+  if (pathname.startsWith('/log-analyzer-assets/')) {
+    serveStatic(res, logAnalyzerAssetsPath, pathname, '/log-analyzer-assets/');
     return;
   }
 

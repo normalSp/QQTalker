@@ -315,12 +315,26 @@ export class DashboardService {
             stats: this.blockService?.getStats() || { blockedUserCount: 0, blockedGroupCount: 0, involvedGroupCount: 0 },
           }));
           return;
+        case '/log-analyzer':
+        case '/log-analyzer.html':
+          this.serveLogAnalyzerHtml(httpRes);
+          return;
         case '/':
         case '/index.html':
         case '/analyzer':
         case '/analyzer.html':
           this.serveDashboardHtml(httpRes);
           return;
+      }
+
+      if (urlPath.startsWith('/dashboard-assets/')) {
+        this.serveStaticAsset(httpRes, urlPath, 'dashboard-assets');
+        return;
+      }
+
+      if (urlPath.startsWith('/log-analyzer-assets/')) {
+        this.serveStaticAsset(httpRes, urlPath, 'log-analyzer-assets');
+        return;
       }
     }
 
@@ -1126,6 +1140,7 @@ export class DashboardService {
       ttsModelDir: config.ttsModelDir,
       ttsVoice: config.ttsVoice,
       ttsSpeed: config.ttsSpeed,
+      ttsReplyMode: config.ttsReplyMode,
       ttsStyle: config.ttsStyle,
       ttsSanitizeWhitelist: config.ttsSanitizeWhitelist,
       ttsSanitizeBlacklist: config.ttsSanitizeBlacklist,
@@ -1308,12 +1323,16 @@ export class DashboardService {
    * 提供 Dashboard HTML 页面（从文件读取，避免模板字符串中的隐藏字符问题）
    */
   private serveDashboardHtml(res: http.ServerResponse): void {
+    this.serveHtmlFile(res, 'dashboard-preview.html', '[Dashboard] Failed to read dashboard HTML');
+  }
+
+  private serveLogAnalyzerHtml(res: http.ServerResponse): void {
+    this.serveHtmlFile(res, 'log-analyzer.html', '[Dashboard] Failed to read log analyzer HTML');
+  }
+
+  private serveHtmlFile(res: http.ServerResponse, fileName: string, logLabel: string): void {
     // 按优先级尝试多个路径：项目根目录、exe 同目录、当前工作目录
-    const candidates = [
-      path.join(__dirname, '..', '..', 'dashboard-preview.html'),  // tsc 编译后
-      path.join(path.dirname(process.execPath), 'dashboard-preview.html'), // pkg 打包
-      path.resolve(process.cwd(), 'dashboard-preview.html'),       // 当前工作目录
-    ];
+    const candidates = this.getRootCandidates(fileName);
 
     let htmlPath: string | null = null;
     for (const p of candidates) {
@@ -1330,14 +1349,88 @@ export class DashboardService {
 
     fs.readFile(htmlPath, 'utf-8', (err, data) => {
       if (err) {
-        logger.error({ err }, '[Dashboard] Failed to read dashboard HTML');
+        logger.error({ err }, logLabel);
         res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
-        res.end('Failed to read dashboard HTML: ' + err.message);
+        res.end(`Failed to read ${fileName}: ` + err.message);
         return;
       }
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(data);
     });
+  }
+
+  private serveStaticAsset(res: http.ServerResponse, urlPath: string, assetDir: 'dashboard-assets' | 'log-analyzer-assets'): void {
+    const relativePath = urlPath.replace(new RegExp(`^/${assetDir}/`), '');
+    if (!relativePath || relativePath.includes('..')) {
+      res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Invalid asset path');
+      return;
+    }
+
+    const candidates = this.getRootCandidates(assetDir).map(rootPath => path.join(rootPath, relativePath));
+    let assetPath: string | null = null;
+
+    for (const candidate of candidates) {
+      try {
+        if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+          assetPath = candidate;
+          break;
+        }
+      } catch {
+        // skip invalid candidate
+      }
+    }
+
+    if (!assetPath) {
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Asset not found');
+      return;
+    }
+
+    fs.readFile(assetPath, (err, data) => {
+      if (err) {
+        logger.error({ err, assetPath }, '[Dashboard] Failed to read static asset');
+        res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('Failed to read asset');
+        return;
+      }
+
+      res.writeHead(200, { 'Content-Type': this.getContentType(assetPath) });
+      res.end(data);
+    });
+  }
+
+  private getRootCandidates(targetPath: string): string[] {
+    return [
+      path.join(__dirname, '..', '..', targetPath),
+      path.join(path.dirname(process.execPath), targetPath),
+      path.resolve(process.cwd(), targetPath),
+    ];
+  }
+
+  private getContentType(filePath: string): string {
+    const ext = path.extname(filePath).toLowerCase();
+    switch (ext) {
+      case '.css':
+        return 'text/css; charset=utf-8';
+      case '.js':
+        return 'text/javascript; charset=utf-8';
+      case '.html':
+        return 'text/html; charset=utf-8';
+      case '.json':
+        return 'application/json; charset=utf-8';
+      case '.svg':
+        return 'image/svg+xml';
+      case '.png':
+        return 'image/png';
+      case '.jpg':
+      case '.jpeg':
+        return 'image/jpeg';
+      case '.webp':
+        return 'image/webp';
+      default:
+        return 'application/octet-stream';
+    }
   }
 
   /**

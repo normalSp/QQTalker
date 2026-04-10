@@ -62,7 +62,9 @@
       "node_modules/silk-wasm/**/*",
       "node_modules/edge-tts/out/**/*",
       ".env*",
+      "dashboard-assets/**/*",
       "log-analyzer.html",
+      "log-analyzer-assets/**/*",
       "log-analyzer-advanced.js",
       "dashboard-preview.html"
     ],
