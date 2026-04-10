@@ -1,0 +1,31 @@
+{
+  "id": "preset-dongxuelian",
+  "name": "冬雪莲",
+  "character": "冬雪莲",
+  "backend": "gpt-sovits",
+  "recommendedBackend": "gpt-sovits",
+  "alternateBackends": ["rvc-compat", "edge-tts"],
+  "qualityTier": "stable",
+  "trainingStatus": "needs-more-clean-data",
+  "previewHint": "建议先试听 8 字以上的完整句，当前首要目标是提高清晰度和连续性。",
+  "tags": ["虚拟偶像", "中文", "reference-ready", "清晰度修复中"],
+  "sampleText": "今天也要元气满满地和大家打招呼哦。",
+  "promptText": "今天也要元气满满地和大家打招呼哦。",
+  "promptLang": "zh",
+  "notes": "当前默认稳定方案。优先使用更干净的单条辅助参考音，先修复可懂度，再做角色贴合增强。",
+  "refAudioPath": "./reference.wav",
+  "auxPaths": ["./aux-1.wav", "./aux-2.wav", "./aux-3.wav"],
+  "backendOverrides": {
+    "gpt-sovits": {
+      "preferredAuxCount": 1,
+      "recommendedTextMinLength": 8,
+      "promptText": "今天也要元气满满地和大家打招呼哦。",
+      "topP": 0.88,
+      "temperature": 0.68,
+      "repetitionPenalty": 1.12,
+      "fragmentInterval": 0.14,
+      "notes": "冬雪莲当前优先保清晰度，限制辅助参考音数量并降低采样波动。"
+    }
+  },
+  "enabled": true
+}

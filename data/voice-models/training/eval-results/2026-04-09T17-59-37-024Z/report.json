@@ -1,0 +1,126 @@
+{
+  "generatedAt": "2026-04-09T17:59:37.026Z",
+  "baseUrl": "http://127.0.0.1:8765",
+  "targets": [
+    {
+      "label": "yongchutafi-gpt",
+      "modelId": "preset-yongchutafi",
+      "backend": "gpt-sovits"
+    },
+    {
+      "label": "yongchutafi-rvc",
+      "modelId": "preset-yongchutafi-rvc",
+      "backend": "rvc-compat"
+    }
+  ],
+  "results": [
+    {
+      "caseId": "short-chat",
+      "text": "今天状态不错，我们继续把这件事做好。",
+      "tags": [
+        "short",
+        "chat",
+        "clarity"
+      ],
+      "target": {
+        "label": "yongchutafi-gpt",
+        "modelId": "preset-yongchutafi",
+        "backend": "gpt-sovits"
+      },
+      "output": "short-chat__yongchutafi-gpt.mp3",
+      "warnings": [],
+      "durationMs": 3753
+    },
+    {
+      "caseId": "short-chat",
+      "text": "今天状态不错，我们继续把这件事做好。",
+      "tags": [
+        "short",
+        "chat",
+        "clarity"
+      ],
+      "target": {
+        "label": "yongchutafi-rvc",
+        "modelId": "preset-yongchutafi-rvc",
+        "backend": "rvc-compat"
+      },
+      "output": "short-chat__yongchutafi-rvc.mp3",
+      "warnings": [
+        "rvc-base:gpt-sovits:preset-yongchutafi"
+      ],
+      "durationMs": 9136
+    },
+    {
+      "caseId": "character-line",
+      "text": "先把句子念清楚，再让声线更贴近角色本人。",
+      "tags": [
+        "character",
+        "ab",
+        "timbre"
+      ],
+      "target": {
+        "label": "yongchutafi-gpt",
+        "modelId": "preset-yongchutafi",
+        "backend": "gpt-sovits"
+      },
+      "output": "character-line__yongchutafi-gpt.mp3",
+      "warnings": [],
+      "durationMs": 2596
+    },
+    {
+      "caseId": "character-line",
+      "text": "先把句子念清楚，再让声线更贴近角色本人。",
+      "tags": [
+        "character",
+        "ab",
+        "timbre"
+      ],
+      "target": {
+        "label": "yongchutafi-rvc",
+        "modelId": "preset-yongchutafi-rvc",
+        "backend": "rvc-compat"
+      },
+      "output": "character-line__yongchutafi-rvc.mp3",
+      "warnings": [
+        "rvc-base:gpt-sovits:preset-yongchutafi"
+      ],
+      "durationMs": 3660
+    },
+    {
+      "caseId": "long-sentence",
+      "text": "如果这次训练真的有效，我希望它既能保留角色辨识度，也不会再出现长句只听清几个字的问题。",
+      "tags": [
+        "long",
+        "continuity",
+        "intelligibility"
+      ],
+      "target": {
+        "label": "yongchutafi-gpt",
+        "modelId": "preset-yongchutafi",
+        "backend": "gpt-sovits"
+      },
+      "output": "long-sentence__yongchutafi-gpt.mp3",
+      "warnings": [],
+      "durationMs": 4491
+    },
+    {
+      "caseId": "long-sentence",
+      "text": "如果这次训练真的有效，我希望它既能保留角色辨识度，也不会再出现长句只听清几个字的问题。",
+      "tags": [
+        "long",
+        "continuity",
+        "intelligibility"
+      ],
+      "target": {
+        "label": "yongchutafi-rvc",
+        "modelId": "preset-yongchutafi-rvc",
+        "backend": "rvc-compat"
+      },
+      "output": "long-sentence__yongchutafi-rvc.mp3",
+      "warnings": [
+        "rvc-base:gpt-sovits:preset-yongchutafi"
+      ],
+      "durationMs": 7520
+    }
+  ]
+}

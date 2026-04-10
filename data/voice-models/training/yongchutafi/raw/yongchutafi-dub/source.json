@@ -1,0 +1,16 @@
+{
+  "id": "yongchutafi-dub",
+  "title": "【永雏塔菲】亲自配音《異世界也要灌注永雛塔菲》",
+  "url": "https://www.bilibili.com/video/BV1ZJ4m1w7Fq/",
+  "platform": "bilibili",
+  "contentType": "dub-video",
+  "priority": "high",
+  "status": "todo",
+  "speakerState": "scripted-voice",
+  "hasBgm": "mixed",
+  "usableForRef": true,
+  "usableForAux": true,
+  "usableForTrain": true,
+  "copyrightNote": "公开视频；建议人工筛掉带配乐和混音过强的部分。",
+  "notes": "可能是更高质量的角色化人声来源，值得优先整理。"
+}

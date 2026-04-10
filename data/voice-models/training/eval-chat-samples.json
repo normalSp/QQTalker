@@ -1,0 +1,54 @@
+{
+  "cases": [
+    {
+      "id": "chat-short-01",
+      "text": "等一下喵，我先把这个问题想清楚。",
+      "tags": ["chat", "short", "tafi"]
+    },
+    {
+      "id": "chat-short-02",
+      "text": "你先别急，我陪你一点点排查。",
+      "tags": ["chat", "short", "comfort"]
+    },
+    {
+      "id": "chat-short-03",
+      "text": "这个结果看起来不太对，我们再试一次。",
+      "tags": ["chat", "short", "debug"]
+    },
+    {
+      "id": "chat-mid-01",
+      "text": "如果你是想让我直接帮你改，那我会先把现状读清楚，再决定是走 GPT 还是实验链路。",
+      "tags": ["chat", "medium", "strategy"]
+    },
+    {
+      "id": "chat-mid-02",
+      "text": "这句回复的信息密度比较高，所以更适合清晰一点、停顿更稳一点的播报方式。",
+      "tags": ["chat", "medium", "long-text"]
+    },
+    {
+      "id": "chat-mid-03",
+      "text": "短句如果只是情绪表达，其实可以试着放一点角色感，但前提还是不要把字念糊。",
+      "tags": ["chat", "medium", "rvc-candidate"]
+    },
+    {
+      "id": "chat-long-01",
+      "text": "今天的迭代先把默认链路稳定住，确保真实回复不会因为实验模型异常而中断；等清晰度和贴脸度的主观评分都过线之后，再考虑把实验链路放进灰度。",
+      "tags": ["chat", "long", "runtime"]
+    },
+    {
+      "id": "chat-long-02",
+      "text": "如果后续要把塔菲语音真正接进 QQTalker 的默认输出，我更建议先把长句、信息密集句和连续追问场景都跑完，再看 RVC 有没有资格进入默认位候选。",
+      "tags": ["chat", "long", "decision"]
+    },
+    {
+      "id": "chat-expressive-01",
+      "text": "诶，你这个点子好像真的可以喵。",
+      "tags": ["chat", "expressive", "short"]
+    },
+    {
+      "id": "chat-expressive-02",
+      "text": "不行不行，这句听起来还是有点机械，我们得继续调。",
+      "tags": ["chat", "expressive", "quality"]
+    }
+  ]
+}

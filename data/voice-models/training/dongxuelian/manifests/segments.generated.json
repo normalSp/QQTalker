@@ -1,0 +1,27 @@
+{
+  "character": "冬雪莲",
+  "generatedAt": "2026-04-09T13:10:38.506Z",
+  "segments": [
+    {
+      "id": "dongxuelian-m3-talk-auto-03",
+      "inputFile": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\dongxuelian\\raw\\dongxuelian-m3-talk\\m3_20-BV1UC411L72U.mp4",
+      "outputPath": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\dongxuelian\\segments\\dongxuelian-m3-talk-auto-03.wav",
+      "transcript": "",
+      "notes": "auto-picked from speech span 00:00:00.000 - 00:00:09.683"
+    },
+    {
+      "id": "dongxuelian-m3-talk-auto-01",
+      "inputFile": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\dongxuelian\\raw\\dongxuelian-m3-talk\\m3_20-BV1UC411L72U.mp4",
+      "outputPath": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\dongxuelian\\segments\\dongxuelian-m3-talk-auto-01.wav",
+      "transcript": "",
+      "notes": "auto-picked from speech span 00:00:10.049 - 00:00:43.431"
+    },
+    {
+      "id": "dongxuelian-m3-talk-auto-02",
+      "inputFile": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\dongxuelian\\raw\\dongxuelian-m3-talk\\m3_20-BV1UC411L72U.mp4",
+      "outputPath": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\dongxuelian\\segments\\dongxuelian-m3-talk-auto-02.wav",
+      "transcript": "",
+      "notes": "auto-picked from speech span 00:00:52.530 - 00:01:02.740"
+    }
+  ]
+}

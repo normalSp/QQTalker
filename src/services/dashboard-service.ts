@@ -73,7 +73,10 @@ export class DashboardService {
 
   // 屏蔽服务引用
   private blockService: BlockService | null = null;
+  private shutdownHandler: (() => void | Promise<void>) | null = null;
   private customRoutes: DashboardRouteProvider[] = [];
+  private astrbotStatusProvider: (() => unknown) | null = null;
+  private configUpdateHandler: ((updates: Record<string, string>) => void | Promise<void>) | null = null;
 
   constructor(port: number = 3180) {
     this.port = port;
@@ -100,6 +103,18 @@ export class DashboardService {
   /** 注入屏蔽服务 */
   setBlockService(blockService: BlockService): void {
     this.blockService = blockService;
+  }
+
+  setShutdownHandler(handler: (() => void | Promise<void>) | null): void {
+    this.shutdownHandler = handler;
+  }
+
+  setAstrbotStatusProvider(provider: (() => unknown) | null): void {
+    this.astrbotStatusProvider = provider;
+  }
+
+  setConfigUpdateHandler(handler: ((updates: Record<string, string>) => void | Promise<void>) | null): void {
+    this.configUpdateHandler = handler;
   }
 
   registerRoutes(routes: DashboardRouteProvider[]): void {
@@ -315,12 +330,34 @@ export class DashboardService {
         case '/api/config':
           this.handlePostBody(httpReq, (body) => {
             this.updateEnvConfig(body);
+            void this.configUpdateHandler?.(body);
             this.handleApi(httpRes, () => ({ success: true, config: this.getConfigData() }));
           });
           return;
         case '/api/config/reload':
           this.handleApi(httpRes, () => {
             return { success: true, message: 'Config reloaded' };
+          });
+          return;
+        case '/api/admin/shutdown':
+          if (!this.isLocalRequest(httpReq)) {
+            httpRes.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+            httpRes.end(JSON.stringify({ success: false, error: 'Only localhost may request shutdown' }));
+            return;
+          }
+          if (!this.shutdownHandler) {
+            httpRes.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8' });
+            httpRes.end(JSON.stringify({ success: false, error: 'Shutdown handler unavailable' }));
+            return;
+          }
+          this.handleApi(httpRes, () => {
+            this.pushLog('system', '收到本地关闭 QQTalker 请求');
+            setTimeout(() => {
+              Promise.resolve(this.shutdownHandler?.()).catch(error => {
+                logger.error({ error }, '[Dashboard] Failed to execute shutdown handler');
+              });
+            }, 120);
+            return { success: true, message: 'QQTalker is shutting down' };
           });
           return;
         // 屏蔽管理 POST
@@ -385,7 +422,10 @@ export class DashboardService {
     url: URL,
   ): Promise<void> {
     try {
-      const result = await route.handler({ req, res, url });
+      const body = req.method === 'POST' || req.method === 'PUT' || req.method === 'DELETE'
+        ? await this.readJsonBody(req)
+        : undefined;
+      const result = await route.handler({ req, res, url, body });
       if (res.writableEnded) return;
       const response = result as DashboardRouteResult | void;
       res.writeHead(response?.status || 200, {
@@ -401,6 +441,25 @@ export class DashboardService {
       res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ error: err.message }));
     }
+  }
+
+  private readJsonBody(req: http.IncomingMessage): Promise<Record<string, any>> {
+    return new Promise((resolve, reject) => {
+      let body = '';
+      req.on('data', (chunk) => { body += chunk; });
+      req.on('end', () => {
+        if (!body.trim()) {
+          resolve({});
+          return;
+        }
+        try {
+          resolve(JSON.parse(body));
+        } catch (error) {
+          reject(error);
+        }
+      });
+      req.on('error', reject);
+    });
   }
 
   /**
@@ -1043,6 +1102,7 @@ export class DashboardService {
   private getStatusData() {
     return {
       ...this.status,
+      astrbot: this.astrbotStatusProvider?.() || null,
       activeGroups: Array.from(this.status.activeGroups),
       uptime: this.getUptime(),
       memoryUsage: process.memoryUsage(),
@@ -1059,14 +1119,42 @@ export class DashboardService {
       aiModel: config.aiModel,
       aiBaseUrl: config.aiBaseUrl,
       ttsEnabled: config.ttsEnabled,
+      ttsProvider: config.ttsProvider,
+      ttsServiceUrl: config.ttsServiceUrl,
+      ttsBackend: config.ttsBackend,
+      ttsModel: config.ttsModel,
+      ttsModelDir: config.ttsModelDir,
       ttsVoice: config.ttsVoice,
       ttsSpeed: config.ttsSpeed,
+      ttsStyle: config.ttsStyle,
+      ttsSanitizeWhitelist: config.ttsSanitizeWhitelist,
+      ttsSanitizeBlacklist: config.ttsSanitizeBlacklist,
+      ttsPreviewText: config.ttsPreviewText,
+      ttsTimeoutMs: config.ttsTimeoutMs,
+      ttsFallbackToBaidu: config.ttsFallbackToBaidu,
+      ttsRuntimePolicy: config.ttsRuntimePolicy,
+      ttsFallbackChain: config.ttsFallbackChain,
+      ttsLongTextPreferredBackend: config.ttsLongTextPreferredBackend,
+      ttsLongTextThreshold: config.ttsLongTextThreshold,
+      ttsRvcShortTextMaxLength: config.ttsRvcShortTextMaxLength,
+      ttsExperimentalRvcEnabled: config.ttsExperimentalRvcEnabled,
+      ttsDefaultCharacter: config.ttsDefaultCharacter,
+      ttsCharacterModelMap: config.ttsCharacterModelMap,
+      ttsGroupVoiceRoleMap: config.ttsGroupVoiceRoleMap,
       sttEnabled: config.sttEnabled,
       sttModel: config.sttModel,
       maxHistory: config.maxHistory,
       scheduleGroups: config.scheduleGroups,
       groupWhitelist: config.groupWhitelist,
       astrbotQq: config.astrbotQq,
+      astrbotEnabledComplexTasks: config.astrbotEnabledComplexTasks,
+      astrbotComplexTaskKeywords: config.astrbotComplexTaskKeywords,
+      astrbotComplexTaskGroupAllowlist: config.astrbotComplexTaskGroupAllowlist,
+      astrbotComplexTaskGroupDenylist: config.astrbotComplexTaskGroupDenylist,
+      astrbotComplexTaskGroupRouteOverrides: config.astrbotComplexTaskGroupRouteOverrides,
+      astrbotComplexTaskMinLength: config.astrbotComplexTaskMinLength,
+      astrbotTimeoutMs: config.astrbotTimeoutMs,
+      astrbotFallbackToLocal: config.astrbotFallbackToLocal,
       logLevel: config.logLevel,
       selfLearningEnabled: config.selfLearning.enabled,
       selfLearningDataDir: config.selfLearning.dataDir,
@@ -1191,6 +1279,11 @@ export class DashboardService {
       res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ error: err.message }));
     }
+  }
+
+  private isLocalRequest(req: http.IncomingMessage): boolean {
+    const remoteAddress = req.socket.remoteAddress || '';
+    return ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(remoteAddress);
   }
 
   private getUptime(): string {

@@ -1,0 +1,19 @@
+{
+  "character": "永雏塔菲",
+  "versions": [
+    {
+      "id": "stable-gpt",
+      "stage": "baseline",
+      "backend": "gpt-sovits",
+      "datasetTag": "reference-only",
+      "notes": "当前线上稳定链路，作为冬雪莲修复的对照组。"
+    },
+    {
+      "id": "exp-rvc",
+      "stage": "planned",
+      "backend": "rvc-compat",
+      "datasetTag": "public-data-v1",
+      "notes": "待补充公开闲聊和配音原声后训练，用于验证贴脸度是否还能提升。"
+    }
+  ]
+}

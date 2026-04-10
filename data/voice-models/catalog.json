@@ -1,0 +1,129 @@
+{
+  "models": [
+    {
+      "id": "preset-dongxuelian",
+      "name": "冬雪莲",
+      "character": "冬雪莲",
+      "backend": "gpt-sovits",
+      "recommendedBackend": "gpt-sovits",
+      "alternateBackends": ["rvc-compat", "edge-tts"],
+      "qualityTier": "stable",
+      "trainingStatus": "needs-more-clean-data",
+      "previewHint": "建议优先试听 8 字以上的完整句，当前以清晰度稳定为第一目标。",
+      "tags": ["虚拟偶像", "中文", "reference-ready", "清晰度修复中"],
+      "sampleText": "今天也要元气满满地和大家打招呼哦。",
+      "promptText": "今天也要元气满满地和大家打招呼哦。",
+      "promptLang": "zh",
+      "notes": "当前默认稳定方案。优先使用更干净的单条辅助参考音，先修复可懂度，再做角色贴合增强。",
+      "refAudioPath": "./dongxuelian/reference.wav",
+      "auxPaths": [
+        "./dongxuelian/aux-1.wav",
+        "./dongxuelian/aux-2.wav",
+        "./dongxuelian/aux-3.wav"
+      ],
+      "backendOverrides": {
+        "gpt-sovits": {
+          "preferredAuxCount": 1,
+          "recommendedTextMinLength": 8,
+          "promptText": "今天也要元气满满地和大家打招呼哦。",
+          "topP": 0.88,
+          "temperature": 0.68,
+          "repetitionPenalty": 1.12,
+          "fragmentInterval": 0.14,
+          "notes": "冬雪莲当前优先保清晰度，限制辅助参考音数量并降低采样波动。"
+        }
+      },
+      "installed": true
+    },
+    {
+      "id": "preset-yongchutafi",
+      "name": "永雏塔菲",
+      "character": "永雏塔菲",
+      "backend": "gpt-sovits",
+      "recommendedBackend": "gpt-sovits",
+      "alternateBackends": ["rvc-compat", "edge-tts"],
+      "qualityTier": "stable",
+      "trainingStatus": "reference-ready",
+      "previewHint": "当前更适合日常聊天与中短句播报，可作为冬雪莲调参对照组。",
+      "tags": ["虚拟偶像", "中文", "reference-ready", "对照组"],
+      "sampleText": "塔菲今天也会认真营业，陪你把这段话念得更像真人。",
+      "promptText": "塔菲今天也会认真营业，陪你把这段话念得更像真人。",
+      "promptLang": "zh",
+      "notes": "当前默认稳定角色，保留两段较稳辅助参考音作为日常播报基线。",
+      "refAudioPath": "./yongchutafi/reference.wav",
+      "auxPaths": [
+        "./yongchutafi/aux-1.wav",
+        "./yongchutafi/aux-2.wav",
+        "./yongchutafi/aux-3.wav"
+      ],
+      "backendOverrides": {
+        "gpt-sovits": {
+          "preferredAuxCount": 2,
+          "recommendedTextMinLength": 6,
+          "notes": "塔菲维持当前较稳的双辅助参考音配置。"
+        }
+      },
+      "installed": true
+    },
+    {
+      "id": "preset-dongxuelian-rvc",
+      "name": "冬雪莲 RVC 实验版",
+      "character": "冬雪莲",
+      "backend": "rvc-compat",
+      "recommendedBackend": "rvc-compat",
+      "alternateBackends": ["gpt-sovits", "edge-tts"],
+      "qualityTier": "experimental",
+      "trainingStatus": "dataset-planned",
+      "experimental": true,
+      "previewHint": "用于验证先生成稳定底音，再做角色变声，是否能提高冬雪莲的可懂度与贴脸度。",
+      "tags": ["虚拟偶像", "中文", "RVC", "实验中"],
+      "sampleText": "先把句子念清楚，再让声线更贴近冬雪莲。",
+      "notes": "RVC Compatible 实验位，待导入训练产物后参与 A/B 对比。",
+      "modelPath": "./dongxuelian/rvc/model.pth",
+      "installed": false
+    },
+    {
+      "id": "preset-yongchutafi-rvc",
+      "name": "永雏塔菲 RVC 实验版",
+      "character": "永雏塔菲",
+      "backend": "rvc-compat",
+      "recommendedBackend": "rvc-compat",
+      "alternateBackends": ["gpt-sovits", "edge-tts"],
+      "qualityTier": "experimental",
+      "trainingStatus": "first-pass-trained",
+      "experimental": true,
+      "previewHint": "作为 GPT-SoVITS 的平行实验版本，验证角色贴合度是否还能继续提升。",
+      "tags": ["虚拟偶像", "中文", "RVC", "实验中"],
+      "sampleText": "这条链路主要用于测试更贴声线的角色变声效果。",
+      "notes": "RVC Compatible 实验位，已导入首版训练产物，可参与 A/B 对比。",
+      "modelPath": "./yongchutafi/rvc/model.pth",
+      "installed": true
+    },
+    {
+      "id": "preset-yongchutafi-rvc-v2",
+      "name": "永雏塔菲 RVC v2 候选版",
+      "character": "永雏塔菲",
+      "backend": "rvc-compat",
+      "recommendedBackend": "rvc-compat",
+      "alternateBackends": ["gpt-sovits", "edge-tts"],
+      "qualityTier": "experimental",
+      "trainingStatus": "awaiting-v2-import",
+      "experimental": true,
+      "previewHint": "用于第二版 RVC 训练后的版本化导入与灰度 A/B，对比首版的清晰度和贴脸度是否同步提升。",
+      "tags": ["虚拟偶像", "中文", "RVC", "v2-candidate"],
+      "sampleText": "这条链路用于验证第二版 RVC 是否足够接近默认输出候选。",
+      "notes": "Version 2 版本化占位条目，导入到 yongchutafi/rvc/v2 后即可参与三路评测。",
+      "modelPath": "./yongchutafi/rvc/v2/model.pth",
+      "installed": false
+    },
+    {
+      "id": "edge-tts-xiaoyi",
+      "name": "zh-CN-XiaoyiNeural",
+      "character": "微软晓伊",
+      "backend": "edge-tts",
+      "tags": ["系统音色", "中文", "默认启用"],
+      "sampleText": "你好呀，欢迎使用 QQTalker 的语音播报插件。",
+      "installed": true
+    }
+  ]
+}

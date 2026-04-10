@@ -1,0 +1,20 @@
+{
+  "dongxuelian-gpt": {
+    "total": 13,
+    "ok": 10,
+    "failed": 3,
+    "averageDurationMs": 15946
+  },
+  "yongchutafi-gpt": {
+    "total": 13,
+    "ok": 12,
+    "failed": 1,
+    "averageDurationMs": 6767
+  },
+  "yongchutafi-rvc": {
+    "total": 13,
+    "ok": 8,
+    "failed": 5,
+    "averageDurationMs": 7058
+  }
+}

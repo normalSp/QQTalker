@@ -1,0 +1,72 @@
+{
+  "character": "永雏塔菲",
+  "spaceUrl": "https://space.bilibili.com/1265680561",
+  "liveRoomUrl": "https://live.bilibili.com/22603245",
+  "strategy": "在保持当前稳定度的前提下，补充更贴角色的公开闲聊原声和低噪短句，优先保证中短句自然度。",
+  "sources": [
+    {
+      "id": "yongchutafi-space",
+      "title": "永雏塔菲 B 站个人空间",
+      "url": "https://space.bilibili.com/1265680561",
+      "platform": "bilibili",
+      "contentType": "official-space",
+      "priority": "high",
+      "status": "todo",
+      "speakerState": "mixed",
+      "hasBgm": "mixed",
+      "usableForRef": false,
+      "usableForAux": false,
+      "usableForTrain": true,
+      "copyrightNote": "公开页面；下载与训练前需再次确认素材使用边界。",
+      "notes": "优先从杂谈、配音、无重 BGM 的公开视频中切片。"
+    },
+    {
+      "id": "yongchutafi-live",
+      "title": "永雏塔菲直播间",
+      "url": "https://live.bilibili.com/22603245",
+      "platform": "bilibili",
+      "contentType": "live-room",
+      "priority": "high",
+      "status": "todo",
+      "speakerState": "live-chat",
+      "hasBgm": "mixed",
+      "usableForRef": true,
+      "usableForAux": true,
+      "usableForTrain": true,
+      "copyrightNote": "公开直播内容；抓取前需人工确认可保存片段范围。",
+      "notes": "适合继续补充自然闲聊、中短句、尾音稳定的样本。"
+    },
+    {
+      "id": "yongchutafi-good-cat",
+      "title": "【永雏塔菲】好似喵~ 好似喵！！",
+      "url": "https://www.bilibili.com/video/BV13S4y1Y7Zr/",
+      "platform": "bilibili",
+      "contentType": "clip",
+      "priority": "medium",
+      "status": "todo",
+      "speakerState": "excited-chat",
+      "hasBgm": false,
+      "usableForRef": false,
+      "usableForAux": true,
+      "usableForTrain": true,
+      "copyrightNote": "公开视频；建议只截取低噪无观众干扰的纯人声区段。",
+      "notes": "适合做角色口癖和高辨识度短句样本，但不宜作为主参考音。"
+    },
+    {
+      "id": "yongchutafi-dub",
+      "title": "【永雏塔菲】亲自配音《異世界也要灌注永雛塔菲》",
+      "url": "https://www.bilibili.com/video/BV1ZJ4m1w7Fq/",
+      "platform": "bilibili",
+      "contentType": "dub-video",
+      "priority": "high",
+      "status": "todo",
+      "speakerState": "scripted-voice",
+      "hasBgm": "mixed",
+      "usableForRef": true,
+      "usableForAux": true,
+      "usableForTrain": true,
+      "copyrightNote": "公开视频；建议人工筛掉带配乐和混音过强的部分。",
+      "notes": "可能是更高质量的角色化人声来源，值得优先整理。"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "character": "冬雪莲",
+  "backend": "rvc-compat",
+  "versionId": "exp-rvc",
+  "datasetTag": "public-data-v1",
+  "targetSampleRate": 40000,
+  "priorityRules": [
+    "优先低噪闲聊和清晰辅音",
+    "避免只用歌回素材",
+    "用更稳定底音做 A/B 变声验证"
+  ],
+  "evalChecklist": [
+    "清晰度是否高于 stable-gpt",
+    "角色声线贴脸度",
+    "句尾破音/沙哑",
+    "实时链路延迟"
+  ]
+}

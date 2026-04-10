@@ -1,0 +1,16 @@
+{
+  "id": "dongxuelian-just-love",
+  "title": "【東雪蓮】【蓮歌】Just Love (feat. PSYQUI)",
+  "url": "https://www.bilibili.com/video/BV1Vr4y1r7aA/",
+  "platform": "bilibili",
+  "contentType": "song-live-clip",
+  "priority": "medium",
+  "status": "todo",
+  "speakerState": "singing",
+  "hasBgm": true,
+  "usableForRef": false,
+  "usableForAux": false,
+  "usableForTrain": false,
+  "copyrightNote": "公开视频；仅作声线观察，不建议直接入训练。",
+  "notes": "歌回片段混响和伴奏较重，不适合作清晰度修复训练。"
+}

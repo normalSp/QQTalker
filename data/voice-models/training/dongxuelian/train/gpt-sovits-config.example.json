@@ -1,0 +1,22 @@
+{
+  "character": "冬雪莲",
+  "backend": "gpt-sovits",
+  "versionId": "stable-gpt",
+  "datasetTag": "public-data-v1",
+  "targetSampleRate": 32000,
+  "segmentDurationSec": {
+    "min": 3,
+    "max": 12
+  },
+  "priorityRules": [
+    "优先普通叙述和日常闲聊",
+    "避免高混响、强 BGM、尖叫和大哭片段",
+    "主参考音优先 6~10 秒干净稳定片段"
+  ],
+  "evalChecklist": [
+    "短句可懂度",
+    "长句连续性",
+    "底噪与气音",
+    "角色贴合度"
+  ]
+}

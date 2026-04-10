@@ -234,9 +234,9 @@ export class SelfLearningPlugin implements QQTalkerPlugin {
       {
         method: 'POST',
         path: '/api/self-learning/learning/run',
-        handler: async ({ req, url }) => {
-          const body = await parseBody(req);
-          const groupId = parseNumber(url.searchParams.get('groupId')) || parseNumber(String(body.groupId || ''));
+        handler: async ({ req, url, body }) => {
+          const payload = body || await parseBody(req);
+          const groupId = parseNumber(url.searchParams.get('groupId')) || parseNumber(String(payload.groupId || ''));
           if (groupId) {
             const report = await this.service.runLearningCycleForGroup(groupId);
             return {
@@ -260,10 +260,10 @@ export class SelfLearningPlugin implements QQTalkerPlugin {
       {
         method: 'POST',
         path: '/api/self-learning/import',
-        handler: async ({ req }) => {
-          const body = await parseBody(req);
-          const bundle = body.bundle || body;
-          const mode = body.mode === 'replace' ? 'replace' : 'merge';
+        handler: async ({ req, body }) => {
+          const payload = body || await parseBody(req);
+          const bundle = payload.bundle || payload;
+          const mode = payload.mode === 'replace' ? 'replace' : 'merge';
           const result = await this.service.importLearningData(bundle, mode);
           return { data: { success: true, result } };
         },
@@ -271,9 +271,9 @@ export class SelfLearningPlugin implements QQTalkerPlugin {
       {
         method: 'POST',
         path: '/api/self-learning/group/clear',
-        handler: async ({ req, url }) => {
-          const body = await parseBody(req);
-          const groupId = parseNumber(url.searchParams.get('groupId')) || parseNumber(String(body.groupId || ''));
+        handler: async ({ req, url, body }) => {
+          const payload = body || await parseBody(req);
+          const groupId = parseNumber(url.searchParams.get('groupId')) || parseNumber(String(payload.groupId || ''));
           if (!groupId) {
             return { status: 400, data: { error: 'Missing groupId' } };
           }
@@ -284,9 +284,9 @@ export class SelfLearningPlugin implements QQTalkerPlugin {
       {
         method: 'POST',
         path: '/api/self-learning/analysis/rebuild',
-        handler: async ({ req, url }) => {
-          const body = await parseBody(req);
-          const groupId = parseNumber(url.searchParams.get('groupId')) || parseNumber(String(body.groupId || ''));
+        handler: async ({ req, url, body }) => {
+          const payload = body || await parseBody(req);
+          const groupId = parseNumber(url.searchParams.get('groupId')) || parseNumber(String(payload.groupId || ''));
           if (!groupId) {
             return { status: 400, data: { error: 'Missing groupId' } };
           }
@@ -305,9 +305,9 @@ export class SelfLearningPlugin implements QQTalkerPlugin {
       {
         method: 'POST',
         path: '/api/self-learning/strategy/runtime',
-        handler: async ({ req }) => {
-          const body = await parseBody(req);
-          const enabled = parseBoolean(body.autoLearningEnabled);
+        handler: async ({ req, body }) => {
+          const payload = body || await parseBody(req);
+          const enabled = parseBoolean(payload.autoLearningEnabled);
           if (enabled === undefined) {
             return { status: 400, data: { error: 'Missing autoLearningEnabled' } };
           }
@@ -322,18 +322,18 @@ export class SelfLearningPlugin implements QQTalkerPlugin {
       {
         method: 'POST',
         path: '/api/self-learning/persona-review/approve',
-        handler: async ({ req }) => {
-          const body = await parseBody(req);
-          await this.service.approvePersonaReview(parseInt(String(body.reviewId || '0'), 10));
+        handler: async ({ req, body }) => {
+          const payload = body || await parseBody(req);
+          await this.service.approvePersonaReview(parseInt(String(payload.reviewId || '0'), 10));
           return { data: { success: true } };
         },
       },
       {
         method: 'POST',
         path: '/api/self-learning/persona-review/reject',
-        handler: async ({ req }) => {
-          const body = await parseBody(req);
-          await this.service.rejectPersonaReview(parseInt(String(body.reviewId || '0'), 10));
+        handler: async ({ req, body }) => {
+          const payload = body || await parseBody(req);
+          await this.service.rejectPersonaReview(parseInt(String(payload.reviewId || '0'), 10));
           return { data: { success: true } };
         },
       },

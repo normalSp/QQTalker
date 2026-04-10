@@ -1,7 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { Readable } from 'stream';
 import { SqlJsAdapter } from '../src/storage/sqljs-adapter';
+import { SelfLearningPlugin } from '../src/plugins/self-learning/self-learning-plugin';
 import { SelfLearningService } from '../src/plugins/self-learning/self-learning-service';
 import { SelfLearningStore } from '../src/plugins/self-learning/self-learning-store';
 import { runAdvancedLearningAnalysis } from '../src/plugins/self-learning/advanced-analysis';
@@ -55,9 +57,16 @@ describe('SelfLearningService advanced flow', () => {
 
     const styles = await service.listStyles(1001, 2001);
     expect(styles.some(item => item.patternType.includes('filler'))).toBe(true);
+    expect(styles.some(item => item.nickname === 'Alice')).toBe(true);
 
     const memories = await service.listMemories(1001, 2001);
     expect(memories.some(item => item.key.startsWith('like:'))).toBe(true);
+
+    const social = await service.listSocial(1001);
+    expect(social.some(item => item.sourceNickname === 'Alice' && item.targetNickname === 'Bob')).toBe(true);
+
+    const affection = await service.listAffection(1001);
+    expect(affection.some(item => item.nickname === 'Alice' || item.nickname === 'Bob')).toBe(true);
 
     const report = await service.runLearningCycleForGroup(1001);
     expect(report.sceneScores.length).toBeGreaterThan(0);
@@ -122,6 +131,56 @@ describe('SelfLearningService advanced flow', () => {
 
     await source.store.close();
     await target.store.close();
+  });
+});
+
+describe('SelfLearningPlugin dashboard routes', () => {
+  it('approves persona review using parsed ctx.body', async () => {
+    const filePath = path.resolve(process.cwd(), 'temp', `self-learning-plugin-test-${Date.now()}-${Math.random().toString(36).slice(2)}.sqlite`);
+    tempFiles.push(filePath);
+    const plugin = new SelfLearningPlugin() as any;
+    plugin.store = new SelfLearningStore(new SqlJsAdapter(filePath));
+    plugin.service = new SelfLearningService(plugin.store);
+    await plugin.initialize({} as any);
+
+    const baseTime = Date.now();
+    await plugin.service.captureMessage({
+      groupId: 3003,
+      userId: 4001,
+      nickname: 'Taffy',
+      text: '我喜欢今天的营业节奏哈哈',
+      rawMessage: '[CQ:at,qq=4002]我喜欢今天的营业节奏哈哈',
+      isAtBot: true,
+      createdAt: baseTime,
+    });
+    await plugin.service.captureMessage({
+      groupId: 3003,
+      userId: 4002,
+      nickname: 'Lian',
+      text: '谢谢你呀，一会儿继续聊',
+      rawMessage: '[CQ:at,qq=4001]谢谢你呀，一会儿继续聊',
+      isAtBot: false,
+      createdAt: baseTime + 1000,
+    });
+
+    await plugin.service.runLearningCycleForGroup(3003);
+    const review = (await plugin.service.listPersonaReviews(3003))[0];
+    expect(review?.id).toBeTruthy();
+
+    const approveRoute = plugin.getDashboardRoutes().find((route: any) => route.path === '/api/self-learning/persona-review/approve');
+    const req = Readable.from([]);
+    const result = await approveRoute.handler({
+      req,
+      res: {} as any,
+      url: new URL('http://localhost/api/self-learning/persona-review/approve'),
+      body: { reviewId: review.id },
+    });
+
+    expect(result?.data).toEqual({ success: true });
+    const snapshot = await plugin.store.getActivePersonaSnapshot(3003);
+    expect(snapshot?.content).toContain('高级学习结果');
+
+    await plugin.dispose();
   });
 });
 

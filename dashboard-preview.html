@@ -568,17 +568,41 @@
     .legend-value { color: var(--text-primary); font-weight: 600; margin-left: auto; }
 
     /* Config Editor */
-    .config-editor { display: flex; flex-direction: column; gap: 16px; }
+    .config-shell { display: flex; flex-direction: column; gap: 16px; }
+    .config-hero {
+      display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; flex-wrap: wrap;
+      padding: 18px 20px; border-radius: var(--radius-md); border: 1px solid var(--glass-border);
+      background: linear-gradient(135deg, rgba(108,142,255,0.08), rgba(179,98,255,0.05));
+    }
+    .config-hero-title { font-size: 18px; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; }
+    .config-hero-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.7; max-width: 760px; }
+    .config-hero-note {
+      display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 999px;
+      background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: var(--text-secondary);
+      font-size: 11px;
+    }
+    .config-tabs { display: flex; flex-wrap: wrap; gap: 10px; }
+    .config-tab {
+      border: 1px solid var(--glass-border); background: rgba(255,255,255,0.04); color: var(--text-secondary);
+      border-radius: 999px; padding: 9px 16px; font-size: 12px; font-weight: 600; cursor: pointer;
+      transition: all var(--transition-normal); font-family: inherit;
+    }
+    .config-tab:hover { border-color: var(--border-light); color: var(--text-primary); transform: translateY(-1px); }
+    .config-tab.active { background: linear-gradient(135deg, var(--accent), var(--purple)); color: #fff; border-color: transparent; box-shadow: 0 0 18px var(--accent-glow); }
+    .config-editor { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 16px; }
     .config-group {
       background: var(--glass-bg); border: 1px solid var(--glass-border);
       border-radius: var(--radius-md); padding: 18px 22px;
       backdrop-filter: blur(8px); transition: all var(--transition-normal);
     }
+    .config-group.wide { grid-column: 1 / -1; }
+    .config-group.section-hidden { display: none; }
     .config-group:hover { border-color: var(--border-light); }
-    .config-group-title { font-size: 11px; font-weight: 700; color: var(--accent); margin-bottom: 14px; text-transform: uppercase; letter-spacing: 0.08em; }
+    .config-group-title { font-size: 13px; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; letter-spacing: 0.02em; }
+    .config-group-desc { font-size: 11px; color: var(--text-muted); line-height: 1.7; margin-bottom: 14px; }
     .config-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
     .config-row:last-child { margin-bottom: 0; }
-    .config-label { font-size: 12px; color: var(--text-secondary); font-weight: 500; min-width: 120px; }
+    .config-label { font-size: 12px; color: var(--text-secondary); font-weight: 500; min-width: 120px; cursor: help; }
     .config-input {
       flex: 1; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); border-radius: 8px;
       padding: 9px 14px; color: var(--text-primary); font-family: 'JetBrains Mono', monospace;
@@ -608,6 +632,60 @@
     }
     .save-config-btn:hover { box-shadow: 0 0 24px var(--accent-glow); transform: translateY(-2px); }
     .config-actions { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
+    .voice-status-pill {
+      display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px;
+      border-radius: 999px; font-size: 12px; font-weight: 600;
+      background: rgba(255,255,255,0.06); color: var(--text-secondary); border: 1px solid var(--glass-border);
+    }
+    .voice-status-pill.ok { color: var(--success); border-color: rgba(52,211,153,0.25); background: rgba(52,211,153,0.08); }
+    .voice-status-pill.error { color: var(--danger); border-color: rgba(248,113,113,0.2); background: rgba(248,113,113,0.08); }
+    .voice-inline-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+    .voice-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+    .voice-backend-card, .voice-model-card {
+      padding: 14px 16px; border-radius: 14px; border: 1px solid var(--glass-border);
+      background: rgba(255,255,255,0.03); transition: all var(--transition-normal);
+    }
+    .voice-backend-card:hover, .voice-model-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .voice-backend-card.active, .voice-model-card.active {
+      border-color: var(--accent);
+      box-shadow: 0 0 24px var(--accent-glow);
+      background: rgba(108,142,255,0.08);
+    }
+    .voice-backend-card.unavailable, .voice-model-card.unavailable { opacity: 0.72; }
+    .voice-card-title { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+    .voice-card-sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; line-height: 1.5; }
+    .voice-card-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+    .voice-card-status {
+      display: inline-flex; align-items: center; padding: 4px 8px; border-radius: 999px;
+      font-size: 10px; font-weight: 700; background: rgba(255,255,255,0.06); color: var(--text-secondary);
+      border: 1px solid var(--glass-border);
+    }
+    .voice-card-status.active { color: var(--success); border-color: rgba(52,211,153,0.25); background: rgba(52,211,153,0.08); }
+    .voice-card-status.experimental { color: var(--warning); border-color: rgba(251,191,36,0.25); background: rgba(251,191,36,0.08); }
+    .voice-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .voice-tag {
+      display: inline-flex; align-items: center; padding: 4px 8px; border-radius: 999px;
+      font-size: 10px; font-weight: 600; background: var(--accent-soft); color: var(--accent);
+    }
+    .voice-model-meta { display: flex; justify-content: space-between; gap: 10px; margin-top: 10px; font-size: 11px; color: var(--text-secondary); }
+    .voice-model-actions { display: flex; gap: 8px; margin-top: 12px; }
+    .voice-model-actions.wrap { flex-wrap: wrap; }
+    .voice-card-btn {
+      padding: 8px 12px; border-radius: 10px; border: 1px solid var(--glass-border);
+      background: rgba(255,255,255,0.05); color: var(--text-primary); cursor: pointer; font-size: 12px; font-weight: 600;
+    }
+    .voice-card-btn.primary { background: linear-gradient(135deg, var(--accent), var(--purple)); border: none; color: #fff; }
+    .voice-card-btn.success { background: linear-gradient(135deg, var(--success), var(--teal)); border: none; color: #fff; }
+    .voice-card-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .voice-preview-player { width: 100%; margin-top: 12px; }
+    .voice-muted { font-size: 11px; color: var(--text-muted); line-height: 1.6; }
+    .voice-service-summary { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 12px; }
+    .voice-model-panel {
+      margin-top: 12px; padding: 10px 12px; border-radius: 12px;
+      background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+    }
+    .voice-model-panel-title { font-size: 11px; color: var(--text-secondary); font-weight: 700; margin-bottom: 6px; }
+    .voice-model-list { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--text-muted); line-height: 1.6; }
 
     /* === Log Viewer with Timeline === */
     .log-viewer { height: 400px; overflow-y: auto; padding-right: 4px; position: relative; }
@@ -1150,6 +1228,7 @@
       .sidebar.open { transform: translateX(0); }
       .stats-grid { grid-template-columns: 1fr; }
       .content { padding: 16px; }
+      .config-editor { grid-template-columns: 1fr; }
     }
     .menu-toggle { display: none; width: 36px; height: 36px; align-items: center; justify-content: center; background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: var(--radius-sm); color: var(--text-secondary); cursor: pointer; font-size: 18px; backdrop-filter: blur(8px); }
     @media (max-width: 768px) { .menu-toggle { display: flex; } }
@@ -1627,13 +1706,28 @@
       <div class="page" id="page-config">
         <div class="card full-card">
           <div class="card-header-bar">
-            <span class="card-title">&#9881; 环境变量配置</span>
+            <span class="card-title">&#9881; 系统配置中心</span>
             <span style="font-size:11px;color:var(--warning);">* 修改后需重启机器人生效</span>
           </div>
           <div class="card-body">
+            <div class="config-shell">
+              <div class="config-hero">
+                <div>
+                  <div class="config-hero-title" id="configHeroTitle">接入与身份</div>
+                  <div class="config-hero-desc" id="configHeroDesc">集中管理 QQ 接入、接口地址和机器人基础行为。字段名支持悬停查看说明，配置页面也按实际使用场景重新做了分类。</div>
+                </div>
+                <div class="config-hero-note">悬停字段名可查看说明，保存后重启即可生效</div>
+              </div>
+              <div class="config-tabs" id="configTabs">
+                <button class="config-tab active" data-config-section="access">接入与身份</button>
+                <button class="config-tab" data-config-section="voice">语音链路</button>
+                <button class="config-tab" data-config-section="automation">自动化与联动</button>
+                <button class="config-tab" data-config-section="learning">自学习</button>
+              </div>
             <div class="config-editor" id="configEditor">
-              <div class="config-group">
-                <div class="config-group-title">&#128268; OneBot Connection</div>
+              <div class="config-group" data-config-section="access">
+                <div class="config-group-title">&#128268; 连接与鉴权</div>
+                <div class="config-group-desc">连接 OneBot 适配器并设置访问凭证，是机器人上线前最先需要确认的一组配置。</div>
                 <div class="config-row">
                   <span class="config-label">WS_URL</span>
                   <input class="config-input" id="cfg-wsUrl" placeholder="ws://127.0.0.1:3001">
@@ -1643,8 +1737,9 @@
                   <input class="config-input" id="cfg-accessToken" type="password" placeholder="Access Token">
                 </div>
               </div>
-              <div class="config-group">
-                <div class="config-group-title">&#129302; AI API</div>
+              <div class="config-group" data-config-section="access">
+                <div class="config-group-title">&#129302; 模型与接口</div>
+                <div class="config-group-desc">配置对话模型的接口来源、地址和默认模型，直接影响回复质量、成本和速度。</div>
                 <div class="config-row">
                   <span class="config-label">AI_API_KEY</span>
                   <input class="config-input" id="cfg-aiApiKey" type="password" placeholder="sk-...">
@@ -1658,8 +1753,9 @@
                   <input class="config-input" id="cfg-aiModel" placeholder="deepseek-chat">
                 </div>
               </div>
-              <div class="config-group">
-                <div class="config-group-title">&#129302; Bot Settings</div>
+              <div class="config-group" data-config-section="access">
+                <div class="config-group-title">&#129302; 机器人行为</div>
+                <div class="config-group-desc">设置机器人身份、上下文长度和群范围，适合在真实群聊联调时按需微调。</div>
                 <div class="config-row">
                   <span class="config-label">BOT_QQ</span>
                   <input class="config-input" id="cfg-botQq" placeholder="机器人QQ号">
@@ -1684,8 +1780,9 @@
                   <input class="config-input" id="cfg-maxHistory" type="number" placeholder="100">
                 </div>
               </div>
-              <div class="config-group">
-                <div class="config-group-title">&#127925; TTS Voice</div>
+              <div class="config-group" data-config-section="voice">
+                <div class="config-group-title">&#127925; 语音基础</div>
+                <div class="config-group-desc">这里控制是否开启播报、基础语速以及无模型音色，是语音体验最常调的一组参数。</div>
                 <div class="config-row">
                   <span class="config-label">TTS_ENABLED</span>
                   <div class="config-toggle-wrap">
@@ -1699,11 +1796,165 @@
                 </div>
                 <div class="config-row">
                   <span class="config-label">TTS_SPEED</span>
-                  <input class="config-input" id="cfg-ttsSpeed" type="number" placeholder="4">
+                  <input class="config-input" id="cfg-ttsSpeed" type="number" step="0.05" placeholder="1.0">
                 </div>
               </div>
-              <div class="config-group">
-                <div class="config-group-title">&#127908; STT Speech</div>
+              <div class="config-group wide" data-config-section="voice">
+                <div class="config-group-title">&#127911; 本地语音链路</div>
+                <div class="config-group-desc">连接本机 voice-service、选择 GPT-SoVITS 后端与角色模型，并在这里做试听和链路状态排查。</div>
+                <div class="config-row">
+                  <span class="config-label">TTS_PROVIDER</span>
+                  <input class="config-input" id="cfg-ttsProvider" placeholder="local-http">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">TTS_SERVICE_URL</span>
+                  <input class="config-input" id="cfg-ttsServiceUrl" placeholder="http://127.0.0.1:8765">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">TTS_BACKEND</span>
+                  <input class="config-input" id="cfg-ttsBackend" placeholder="gpt-sovits" readonly>
+                </div>
+                <div class="config-row">
+                  <span class="config-label">TTS_MODEL</span>
+                  <input class="config-input" id="cfg-ttsModel" placeholder="preset-dongxuelian">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">TTS_MODEL_DIR</span>
+                  <input class="config-input" id="cfg-ttsModelDir" placeholder="./data/voice-models">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">TTS_STYLE</span>
+                  <input class="config-input" id="cfg-ttsStyle" placeholder="natural / sweet / lively">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">TTS_SANITIZE_WHITELIST</span>
+                  <input class="config-input" id="cfg-ttsSanitizeWhitelist" placeholder="要保留的字符，如 ～!">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">TTS_SANITIZE_BLACKLIST</span>
+                  <input class="config-input" id="cfg-ttsSanitizeBlacklist" placeholder="强制移除的字符，如 []">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">TTS_PREVIEW_TEXT</span>
+                  <input class="config-input" id="cfg-ttsPreviewText" placeholder="试听文本">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">TTS_TIMEOUT_MS</span>
+                  <input class="config-input" id="cfg-ttsTimeoutMs" type="number" placeholder="45000">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">TTS_FALLBACK_TO_BAIDU</span>
+                  <div class="config-toggle-wrap">
+                    <div class="config-toggle on" id="cfg-ttsFallbackToBaidu" onclick="this.classList.toggle('on')"></div>
+                    <span class="config-toggle-label">本地语音服务失败时回退到旧百度TTS</span>
+                  </div>
+                </div>
+                <div class="config-row">
+                  <span class="config-label">TTS_RUNTIME_POLICY</span>
+                  <input class="config-input" id="cfg-ttsRuntimePolicy" placeholder="model-default">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">TTS_DEFAULT_CHARACTER</span>
+                  <input class="config-input" id="cfg-ttsDefaultCharacter" placeholder="永雏塔菲">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">TTS_CHARACTER_MODEL_MAP</span>
+                  <input class="config-input" id="cfg-ttsCharacterModelMap" placeholder="永雏塔菲:preset-yongchutafi,冬雪莲:preset-dongxuelian">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">TTS_GROUP_VOICE_ROLE_MAP</span>
+                  <input class="config-input" id="cfg-ttsGroupVoiceRoleMap" placeholder="123456:永雏塔菲,234567:冬雪莲">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">TTS_FALLBACK_CHAIN</span>
+                  <input class="config-input" id="cfg-ttsFallbackChain" placeholder="edge-tts,legacy-baidu">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">TTS_LONG_TEXT_PREFERRED_BACKEND</span>
+                  <input class="config-input" id="cfg-ttsLongTextPreferredBackend" placeholder="gpt-sovits">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">TTS_LONG_TEXT_THRESHOLD</span>
+                  <input class="config-input" id="cfg-ttsLongTextThreshold" type="number" placeholder="72">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">TTS_RVC_SHORT_TEXT_MAX_LENGTH</span>
+                  <input class="config-input" id="cfg-ttsRvcShortTextMaxLength" type="number" placeholder="28">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">TTS_EXPERIMENTAL_RVC_ENABLED</span>
+                  <div class="config-toggle-wrap">
+                    <div class="config-toggle" id="cfg-ttsExperimentalRvcEnabled" onclick="this.classList.toggle('on')"></div>
+                    <span class="config-toggle-label">允许短句进入 RVC 灰度链路</span>
+                  </div>
+                </div>
+                <div class="voice-service-summary">
+                  <div class="voice-status-pill" id="voiceServiceStatus">语音服务状态：检测中</div>
+                  <div class="voice-muted" id="voiceServiceMeta">等待加载本机模型目录与后端信息</div>
+                  <div class="voice-muted" id="voiceTelemetryMeta">等待加载语音统计...</div>
+                </div>
+                <div class="voice-inline-actions">
+                  <button class="save-config-btn" onclick="loadVoicePanel()">&#128260; 刷新语音服务</button>
+                  <button class="save-config-btn" style="background:var(--sidebar-hover);color:var(--text-secondary);" onclick="rescanVoiceModels()">&#128269; 重扫模型目录</button>
+                  <button class="save-config-btn" style="background:linear-gradient(135deg,var(--neon-pink),var(--purple));" onclick="previewVoice()">&#127925; 生成试听</button>
+                </div>
+                <audio id="voicePreviewPlayer" class="voice-preview-player" controls style="display:none;"></audio>
+                <div class="voice-muted" id="voicePreviewMeta">可输入试听文本并选择默认模型，生成后会在这里播放。</div>
+              </div>
+              <div class="config-group" data-config-section="voice">
+                <div class="config-group-title">&#128187; 可用后端</div>
+                <div class="config-group-desc">展示当前可调用的语音后端、GPU 依赖和模型支持情况，便于快速定位链路问题。</div>
+                <div id="voiceBackends" class="voice-grid">
+                  <div class="empty-state" style="padding:20px 0;"><div class="empty-text">等待加载语音后端...</div></div>
+                </div>
+              </div>
+              <div class="config-group" data-config-section="voice">
+                <div class="config-group-title">&#127908; 角色模型</div>
+                <div class="config-group-desc">浏览本地模型目录、角色预设与导入状态。参考音更干净的模型通常会更稳。</div>
+                <div class="voice-muted" style="margin-bottom:12px;">内置了冬雪莲、永雏塔菲等角色预设；当模型文件未安装时，会显示为“待导入”。</div>
+                <div id="voiceModels" class="voice-grid">
+                  <div class="empty-state" style="padding:20px 0;"><div class="empty-text">等待加载模型目录...</div></div>
+                </div>
+              </div>
+              <div class="config-group wide" data-config-section="voice">
+                <div class="config-group-title">&#127911; 语音训练中心（MVP）</div>
+                <div class="config-group-desc">展示训练工作区、脚本链路和角色准备度。当前阶段先支持查看与同步摘要，不直接在浏览器里跑完整训练。</div>
+                <div class="voice-service-summary">
+                  <div class="voice-status-pill" id="voiceTrainingStatus">训练工作区：检测中</div>
+                  <div class="voice-muted" id="voiceTrainingMeta">等待加载训练工作区状态...</div>
+                </div>
+                <div class="voice-inline-actions">
+                  <button class="save-config-btn" onclick="loadVoiceTrainingPanel()">&#128260; 刷新训练中心</button>
+                  <button class="save-config-btn" style="background:linear-gradient(135deg,var(--success),var(--teal));" onclick="syncVoiceTrainingWorkspace()">&#128295; 同步训练摘要</button>
+                  <button class="save-config-btn" style="background:linear-gradient(135deg,var(--neon-pink),var(--purple));" onclick="runVoiceTrainingAction('eval')">&#127911; 运行试听评测</button>
+                </div>
+                <div class="config-row" style="margin-top:12px;">
+                  <span class="config-label">导入角色</span>
+                  <input class="config-input" id="voiceTrainingImportCharacter" placeholder="如 yongchutafi">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">本地素材路径</span>
+                  <input class="config-input" id="voiceTrainingImportPath" placeholder="输入本地音频/视频文件或目录路径">
+                </div>
+                <div class="voice-inline-actions" style="margin-top:8px;">
+                  <button class="save-config-btn" style="background:linear-gradient(135deg,var(--accent),var(--purple));" onclick="importVoiceTrainingRaw()">&#128228; 导入到 raw</button>
+                  <button class="save-config-btn" style="background:linear-gradient(135deg,var(--info),var(--accent));" onclick="document.getElementById('voiceTrainingUploadInput').click()">&#128194; 选择文件上传</button>
+                </div>
+                <input id="voiceTrainingUploadInput" type="file" accept="audio/*,video/*,.wav,.mp3,.m4a,.flac,.aac,.ogg,.mp4,.mkv,.webm" style="display:none" onchange="handleVoiceTrainingUpload(event)">
+                <div id="voiceTrainingScripts" class="voice-model-list" style="margin:14px 0 10px;"></div>
+                <div id="voiceTrainingQueue" class="voice-model-list" style="margin:0 0 10px;"></div>
+                <div id="voiceTrainingTasks" class="voice-model-list" style="margin:0 0 10px;"></div>
+                <div id="voiceTrainingCharacters" class="voice-grid">
+                  <div class="empty-state" style="padding:20px 0;"><div class="empty-text">等待加载训练工作区...</div></div>
+                </div>
+                <div id="voiceTrainingDetail" class="voice-model-panel" style="margin-top:14px;">
+                  <div class="voice-model-panel-title">角色训练详情</div>
+                  <div class="voice-muted">点击上方角色卡片可查看来源、版本和 manifest 条目。</div>
+                </div>
+              </div>
+              <div class="config-group" data-config-section="voice">
+                <div class="config-group-title">&#127908; 语音识别</div>
+                <div class="config-group-desc">控制语音转文字链路，适合在语音群聊或陪聊场景里与 TTS 一起联调。</div>
                 <div class="config-row">
                   <span class="config-label">STT_ENABLED</span>
                   <div class="config-toggle-wrap">
@@ -1716,22 +1967,88 @@
                   <input class="config-input" id="cfg-sttModel" placeholder="FunAudioLLM/SenseVoiceSmall">
                 </div>
               </div>
-              <div class="config-group">
-                <div class="config-group-title">&#128337; Scheduler</div>
+              <div class="config-group" data-config-section="automation">
+                <div class="config-group-title">&#128337; 定时任务</div>
+                <div class="config-group-desc">控制早安、午安、运势等定时发送的目标群，适合做自动化播报时统一维护。</div>
                 <div class="config-row">
                   <span class="config-label">SCHEDULE_GROUPS</span>
                   <input class="config-input" id="cfg-scheduleGroups" placeholder="群号,逗号分隔,留空=所有活跃群">
                 </div>
               </div>
-              <div class="config-group">
-                <div class="config-group-title">&#128225; AstrBot Relay</div>
+              <div class="config-group" data-config-section="automation">
+                <div class="config-group-title">&#128225; AstrBot 联动</div>
+                <div class="config-group-desc">如果你同时使用 AstrBot，可在这里把它配置为复杂任务协处理器，而不是接管 QQTalker 主体验。</div>
                 <div class="config-row">
                   <span class="config-label">ASTRBOT_QQ</span>
                   <input class="config-input" id="cfg-astrbotQq" type="number" placeholder="AstrBot QQ号">
                 </div>
+                <div class="config-row">
+                  <span class="config-label">ASTRBOT_ENABLED_COMPLEX_TASKS</span>
+                  <div class="config-toggle-wrap">
+                    <div class="config-toggle" id="cfg-astrbotEnabledComplexTasks" onclick="this.classList.toggle('on')"></div>
+                    <span class="config-toggle-label">仅在复杂任务场景自动委托给 AstrBot</span>
+                  </div>
+                </div>
+                <div class="config-row">
+                  <span class="config-label">ASTRBOT_COMPLEX_TASK_KEYWORDS</span>
+                  <input class="config-input" id="cfg-astrbotComplexTaskKeywords" placeholder="分析,总结,规划,排查,设计,方案,roadmap">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">ASTRBOT_COMPLEX_TASK_GROUP_ALLOWLIST</span>
+                  <input class="config-input" id="cfg-astrbotComplexTaskGroupAllowlist" placeholder="群号,逗号分隔,留空表示所有群">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">ASTRBOT_COMPLEX_TASK_GROUP_DENYLIST</span>
+                  <input class="config-input" id="cfg-astrbotComplexTaskGroupDenylist" placeholder="群号,逗号分隔,这些群永不自动委托">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">ASTRBOT_COMPLEX_TASK_GROUP_ROUTE_OVERRIDES</span>
+                  <input class="config-input" id="cfg-astrbotComplexTaskGroupRouteOverrides" placeholder="123456:local-only,234567:force-delegate">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">ASTRBOT_COMPLEX_TASK_MIN_LENGTH</span>
+                  <input class="config-input" id="cfg-astrbotComplexTaskMinLength" type="number" placeholder="48">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">ASTRBOT_TIMEOUT_MS</span>
+                  <input class="config-input" id="cfg-astrbotTimeoutMs" type="number" placeholder="45000">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">ASTRBOT_FALLBACK_TO_LOCAL</span>
+                  <div class="config-toggle-wrap">
+                    <div class="config-toggle on" id="cfg-astrbotFallbackToLocal" onclick="this.classList.toggle('on')"></div>
+                    <span class="config-toggle-label">AstrBot 失败时回退到 QQTalker 本地处理</span>
+                  </div>
+                </div>
+                <div class="voice-service-summary">
+                  <div class="voice-status-pill" id="astrbotComplexTaskStatus">复杂任务委托：检测中</div>
+                  <div class="voice-muted" id="astrbotComplexTaskMeta">等待加载 AstrBot 复杂任务委托状态...</div>
+                </div>
+                <div class="voice-inline-actions" style="margin-top:10px;">
+                  <select class="config-input" id="astrbotEventFilterStatus" onchange="updateAstrbotEventFilter()" style="max-width:180px;">
+                    <option value="all">全部状态</option>
+                    <option value="delegated">仅 delegated</option>
+                    <option value="skipped">仅 skipped</option>
+                    <option value="fallback">仅 fallback</option>
+                    <option value="forwarded">仅 forwarded</option>
+                  </select>
+                  <select class="config-input" id="astrbotEventFilterRoute" onchange="updateAstrbotEventFilter()" style="max-width:180px;">
+                    <option value="all">全部路由</option>
+                    <option value="complex-task">complex-task</option>
+                    <option value="explicit-command">explicit-command</option>
+                    <option value="relay-mode">relay-mode</option>
+                    <option value="none">无 route</option>
+                  </select>
+                  <input class="config-input" id="astrbotEventFilterKeyword" placeholder="按原因或预览过滤" oninput="updateAstrbotEventFilter()" style="max-width:240px;">
+                </div>
+                <div id="astrbotComplexTaskDetail" class="voice-model-panel" style="margin-top:12px;">
+                  <div class="voice-model-panel-title">AstrBot 联动详情</div>
+                  <div class="voice-muted">等待加载联动状态...</div>
+                </div>
               </div>
-              <div class="config-group">
-                <div class="config-group-title">&#129504; Self Learning</div>
+              <div class="config-group wide" data-config-section="learning">
+                <div class="config-group-title">&#129504; 自学习体系</div>
+                <div class="config-group-desc">集中管理学习数据源、周期、数据库和分析强度。建议在基础链路稳定后再逐步启用。</div>
                 <div class="config-row">
                   <span class="config-label">SELF_LEARNING_ENABLED</span>
                   <div class="config-toggle-wrap">
@@ -1803,6 +2120,7 @@
                 <button class="save-config-btn" onclick="saveConfig()">&#128190; 保存到 .env</button>
                 <button class="save-config-btn" style="background:var(--sidebar-hover);color:var(--text-secondary);" onclick="loadConfig()">&#128260; 从服务器重新加载</button>
               </div>
+            </div>
             </div>
           </div>
         </div>
@@ -2123,6 +2441,19 @@ const state = {
   history: [],
   maxHistory: 200,
   config: null,
+  voice: {
+    status: null,
+    backends: [],
+    models: [],
+  },
+  voiceTraining: {
+    overview: null,
+    detail: null,
+    selectedCharacterId: '',
+  },
+  astrbot: {
+    snapshot: null,
+  },
   connected: false,
   sseConnected: false,
   statsHistory: [],
@@ -2245,7 +2576,7 @@ function switchPage(page) {
     document.getElementById('pageBreadcrumb').textContent = titles[page].bc;
   }
   if (page === 'selflearning') loadSelfLearningPanel(false);
-  if (page === 'config' && !state.config) loadConfig();
+  if (page === 'config') { applyConfigFieldMeta(); loadConfig(); setConfigSection(activeConfigSection); }
   if (page === 'process') renderProcess();
   if (page === 'analytics') initAnalyticsCharts();
   if (page === 'chatlog' && chatLogState.messages.length === 0) loadChatLogs();
@@ -2491,16 +2822,139 @@ document.getElementById('logFilter')?.addEventListener('change', (e) => {
 });
 
 // ========== Config Management ==========
+const CONFIG_FIELD_META = {
+  WS_URL: 'OneBot WebSocket 地址，通常填写 NapCat / go-cqhttp 提供的 ws 接口地址。',
+  ACCESS_TOKEN: 'OneBot 鉴权 token。若上游未开启鉴权可留空，需与机器人侧配置保持一致。',
+  AI_API_KEY: '大模型接口密钥。出于安全考虑，页面重新加载后不会回显，需要时可直接重新填写。',
+  AI_BASE_URL: 'OpenAI 兼容接口基础地址，例如 DeepSeek、OpenRouter 或自建网关地址。',
+  AI_MODEL: '默认对话模型名称，决定回复质量、速度和成本。',
+  BOT_QQ: '机器人自己的 QQ 号，用于识别 @、过滤自发消息和部分插件逻辑。',
+  BOT_NICKNAME: '机器人在群内显示或识别用昵称，可为空。',
+  AT_TRIGGER: '开启后只响应 @ 机器人的消息；关闭后也可结合其他策略主动参与对话。',
+  GROUP_WHITELIST: '允许机器人响应的群号列表，逗号分隔；留空表示不限制群范围。',
+  MAX_HISTORY: '单个会话保留的上下文条数。越大越连贯，但也更占 token 和内存。',
+  TTS_ENABLED: '是否启用“先发文字、再追加语音”的播报链路。',
+  TTS_VOICE: 'Edge TTS 等无模型后端使用的默认音色名；本地角色模型通常可忽略此项。',
+  TTS_SPEED: '基础语速，推荐 0.95~1.08。系统会再按句型做轻微自适应，不建议填太大。',
+  TTS_PROVIDER: 'TTS 服务提供方。当前本项目推荐使用 local-http 连接本地 voice-service。',
+  TTS_SERVICE_URL: '本地语音服务地址，默认是 voice-service 的 8765 端口。',
+  TTS_BACKEND: '语音后端类型。角色播报建议 gpt-sovits，系统兜底可用 edge-tts。',
+  TTS_MODEL: '默认角色模型 ID，例如 preset-yongchutafi。需与模型目录中的 id 一致。',
+  TTS_MODEL_DIR: '角色模型目录，通常保持 ./data/voice-models 即可。',
+  TTS_STYLE: '播报风格标签。当前主要用于节奏策略与兼容后端，建议 natural、lively、sweet。',
+  TTS_SANITIZE_WHITELIST: '需要在播报前强制保留的字符，如 ～、啊、呀 等口癖符号。',
+  TTS_SANITIZE_BLACKLIST: '需要在播报前强制移除的字符，适合处理总会读坏的特殊符号。',
+  TTS_PREVIEW_TEXT: '点击“生成试听”时使用的默认测试文本，建议填日常常说的话。',
+  TTS_TIMEOUT_MS: '单次本地合成超时毫秒数。模型较慢或长文本较多时可适当调高。',
+  TTS_FALLBACK_TO_BAIDU: '本地合成失败时是否自动回退到旧百度 TTS，保证至少有声音输出。',
+  STT_ENABLED: '是否启用语音识别，把收到的语音消息转成文字再参与对话。',
+  STT_MODEL: '语音识别模型名，默认是 SenseVoiceSmall，中文识别效果较稳。',
+  SCHEDULE_GROUPS: '定时问候/运势等任务投放的群号列表，逗号分隔；留空可按项目逻辑处理活跃群。',
+  ASTRBOT_QQ: '需要转发或联动的 AstrBot 目标 QQ 号，不用该功能可留空。',
+  ASTRBOT_ENABLED_COMPLEX_TASKS: '开启后，仅在复杂任务场景自动委托 AstrBot；日常聊天和语音链路仍由 QQTalker 主导。',
+  ASTRBOT_COMPLEX_TASK_KEYWORDS: '复杂任务关键词，逗号分隔。命中后会优先考虑委托 AstrBot。',
+  ASTRBOT_COMPLEX_TASK_GROUP_ALLOWLIST: '允许自动委托复杂任务的群号列表。留空表示所有群都可命中自动委托规则。',
+  ASTRBOT_COMPLEX_TASK_GROUP_DENYLIST: '明确禁止自动委托复杂任务的群号列表。命中后即使在 allowlist 中也不会自动委托。',
+  ASTRBOT_COMPLEX_TASK_GROUP_ROUTE_OVERRIDES: '按群指定更细粒度路由策略，格式如 123456:local-only,234567:force-delegate。',
+  ASTRBOT_COMPLEX_TASK_MIN_LENGTH: '复杂任务最小文本长度阈值。第一版会和关键词、结构词一起参与判定。',
+  ASTRBOT_TIMEOUT_MS: '等待 AstrBot 私聊链路返回的超时时间，超时后可按配置回退到本地处理。',
+  ASTRBOT_FALLBACK_TO_LOCAL: '当 AstrBot 转发失败或超时时，是否由 QQTalker 自动接管当前请求。',
+  SELF_LEARNING_ENABLED: '是否启用自学习插件，开启后会记录和分析互动数据。',
+  SELF_LEARNING_DATA_DIR: '自学习数据目录，包含数据库和分析中间结果。',
+  SELF_LEARNING_TARGETS: '允许参与学习的对象列表，可填 QQ 号或 group_群号，逗号分隔。',
+  SELF_LEARNING_BLACKLIST: '明确排除的对象列表，命中后不会进入学习样本。',
+  SELF_LEARNING_INTERVAL_HOURS: '自动学习与聚合的周期小时数，越短越实时但负载更高。',
+  SELF_LEARNING_MIN_MESSAGES: '触发一次学习前，单个对象至少需要累计的消息条数。',
+  SELF_LEARNING_MAX_BATCH: '每轮学习最多处理的消息数，避免单次任务过重。',
+  SELF_LEARNING_DB_TYPE: '自学习数据库类型，默认 sqlite；切到 mysql/postgres 时需同时配置连接串。',
+  SELF_LEARNING_DB_FILE: 'sqlite 模式下的数据库文件路径。',
+  SELF_LEARNING_MYSQL_URL: 'MySQL 连接串，仅在 SELF_LEARNING_DB_TYPE=mysql 时使用。',
+  SELF_LEARNING_POSTGRES_URL: 'PostgreSQL 连接串，仅在 SELF_LEARNING_DB_TYPE=postgres 时使用。',
+  SELF_LEARNING_ENABLE_ML: '是否启用轻量聚类、风格归纳和场景分析。',
+  SELF_LEARNING_MAX_ML_SAMPLE: '每轮机器学习分析抽样上限，过大时耗时会明显增加。',
+  SELF_LEARNING_TOTAL_AFFECTION_CAP: '所有用户累计好感度总上限，用于限制整体数值膨胀。',
+  SELF_LEARNING_MAX_USER_AFFECTION: '单个用户可达到的最大好感度上限。',
+};
+
+const CONFIG_SECTION_META = {
+  access: {
+    title: '接入与身份',
+    desc: '集中管理 QQ 接入、接口地址和机器人基础行为。适合首次部署、迁移环境或排查连接问题时查看。'
+  },
+  voice: {
+    title: '语音链路',
+    desc: '配置本地语音服务、角色模型、试听和识别能力。与 GPT-SoVITS、voice-service 的联调主要在这里完成。'
+  },
+  automation: {
+    title: '自动化与联动',
+    desc: '包含定时任务和 AstrBot 联动等扩展能力，适合在基础对话稳定后按需启用。'
+  },
+  learning: {
+    title: '自学习',
+    desc: '聚合自学习样本、周期和数据库配置。建议在明确数据边界和隐私策略后再逐步开启。'
+  }
+};
+
+let activeConfigSection = 'access';
+let voiceTrainingTaskPoller = null;
+
+function applyConfigFieldMeta() {
+  document.querySelectorAll('#configEditor .config-label').forEach((label) => {
+    const key = (label.textContent || '').trim();
+    const helpText = CONFIG_FIELD_META[key];
+    if (!helpText) return;
+    label.title = helpText;
+  });
+}
+
+function setConfigSection(section) {
+  const nextSection = CONFIG_SECTION_META[section] ? section : 'access';
+  activeConfigSection = nextSection;
+  document.querySelectorAll('.config-tab').forEach((button) => {
+    button.classList.toggle('active', button.dataset.configSection === nextSection);
+  });
+  document.querySelectorAll('#configEditor .config-group[data-config-section]').forEach((group) => {
+    group.classList.toggle('section-hidden', group.dataset.configSection !== nextSection);
+  });
+  const meta = CONFIG_SECTION_META[nextSection];
+  const titleEl = document.getElementById('configHeroTitle');
+  const descEl = document.getElementById('configHeroDesc');
+  if (titleEl) titleEl.textContent = meta.title;
+  if (descEl) descEl.textContent = meta.desc;
+  if (nextSection === 'voice') {
+    loadVoicePanel();
+    startVoiceTrainingTaskPolling();
+  } else {
+    stopVoiceTrainingTaskPolling();
+  }
+}
+
 async function loadConfig() {
+  applyConfigFieldMeta();
   const cfg = await api('/api/config');
+  const status = await api('/api/status');
   if (!cfg || (cfg.botQq === undefined && cfg.botQq !== '')) return;
   state.config = cfg;
   const map = {
     wsUrl: 'cfg-wsUrl', aiApiKey: 'cfg-aiApiKey', aiBaseUrl: 'cfg-aiBaseUrl',
     aiModel: 'cfg-aiModel', botQq: 'cfg-botQq', botNickname: 'cfg-botNickname',
     groupWhitelist: 'cfg-groupWhitelist', maxHistory: 'cfg-maxHistory',
-    ttsVoice: 'cfg-ttsVoice', ttsSpeed: 'cfg-ttsSpeed', sttModel: 'cfg-sttModel',
+    ttsProvider: 'cfg-ttsProvider', ttsServiceUrl: 'cfg-ttsServiceUrl',
+    ttsBackend: 'cfg-ttsBackend', ttsModel: 'cfg-ttsModel', ttsModelDir: 'cfg-ttsModelDir',
+    ttsVoice: 'cfg-ttsVoice', ttsSpeed: 'cfg-ttsSpeed', ttsStyle: 'cfg-ttsStyle',
+    ttsSanitizeWhitelist: 'cfg-ttsSanitizeWhitelist', ttsSanitizeBlacklist: 'cfg-ttsSanitizeBlacklist',
+    ttsPreviewText: 'cfg-ttsPreviewText', ttsTimeoutMs: 'cfg-ttsTimeoutMs',
+    ttsRuntimePolicy: 'cfg-ttsRuntimePolicy', ttsFallbackChain: 'cfg-ttsFallbackChain',
+    ttsLongTextPreferredBackend: 'cfg-ttsLongTextPreferredBackend', ttsLongTextThreshold: 'cfg-ttsLongTextThreshold',
+    ttsRvcShortTextMaxLength: 'cfg-ttsRvcShortTextMaxLength', ttsDefaultCharacter: 'cfg-ttsDefaultCharacter',
+    sttModel: 'cfg-sttModel',
     scheduleGroups: 'cfg-scheduleGroups', astrbotQq: 'cfg-astrbotQq',
+    astrbotComplexTaskKeywords: 'cfg-astrbotComplexTaskKeywords',
+    astrbotComplexTaskGroupAllowlist: 'cfg-astrbotComplexTaskGroupAllowlist',
+    astrbotComplexTaskGroupDenylist: 'cfg-astrbotComplexTaskGroupDenylist',
+    astrbotComplexTaskGroupRouteOverrides: 'cfg-astrbotComplexTaskGroupRouteOverrides',
+    astrbotComplexTaskMinLength: 'cfg-astrbotComplexTaskMinLength',
+    astrbotTimeoutMs: 'cfg-astrbotTimeoutMs',
     selfLearningDataDir: 'cfg-selfLearningDataDir',
     selfLearningTargets: 'cfg-selfLearningTargets',
     selfLearningBlacklist: 'cfg-selfLearningBlacklist',
@@ -2518,21 +2972,38 @@ async function loadConfig() {
   for (const [k, id] of Object.entries(map)) {
     const el = document.getElementById(id);
     if (el && cfg[k] !== undefined) {
-      el.value = Array.isArray(cfg[k]) ? cfg[k].join(',') : cfg[k];
+      el.value = Array.isArray(cfg[k]) ? cfg[k].join(',') : formatVoiceRouteMap(cfg[k]);
     }
   }
   const atEl = document.getElementById('cfg-atTrigger');
   if (atEl) atEl.className = 'config-toggle' + (cfg.atTrigger ? ' on' : '');
   const ttsEl = document.getElementById('cfg-ttsEnabled');
   if (ttsEl) ttsEl.className = 'config-toggle' + (cfg.ttsEnabled ? ' on' : '');
+  const ttsFallbackEl = document.getElementById('cfg-ttsFallbackToBaidu');
+  if (ttsFallbackEl) ttsFallbackEl.className = 'config-toggle' + (cfg.ttsFallbackToBaidu ? ' on' : '');
+  const ttsExperimentalRvcEl = document.getElementById('cfg-ttsExperimentalRvcEnabled');
+  if (ttsExperimentalRvcEl) ttsExperimentalRvcEl.className = 'config-toggle' + (cfg.ttsExperimentalRvcEnabled ? ' on' : '');
   const sttEl = document.getElementById('cfg-sttEnabled');
   if (sttEl) sttEl.className = 'config-toggle' + (cfg.sttEnabled ? ' on' : '');
   const slEl = document.getElementById('cfg-selfLearningEnabled');
   if (slEl) slEl.className = 'config-toggle' + (cfg.selfLearningEnabled ? ' on' : '');
   const slMlEl = document.getElementById('cfg-selfLearningEnableMl');
   if (slMlEl) slMlEl.className = 'config-toggle' + (cfg.selfLearningEnableMl ? ' on' : '');
+  const astrbotComplexEl = document.getElementById('cfg-astrbotEnabledComplexTasks');
+  if (astrbotComplexEl) astrbotComplexEl.className = 'config-toggle' + (cfg.astrbotEnabledComplexTasks ? ' on' : '');
+  const astrbotFallbackEl = document.getElementById('cfg-astrbotFallbackToLocal');
+  if (astrbotFallbackEl) astrbotFallbackEl.className = 'config-toggle' + (cfg.astrbotFallbackToLocal ? ' on' : '');
+  renderVoiceBackends(state.voice.backends || []);
+  renderVoiceModels(state.voice.models || []);
+  updateAstrbotComplexTaskStatus(status && status.astrbot ? status.astrbot : null);
   toast('配置已加载', 'success');
 }
+
+document.querySelectorAll('.config-tab').forEach((button) => {
+  button.addEventListener('click', () => {
+    setConfigSection(button.dataset.configSection);
+  });
+});
 
 async function saveConfig() {
   const data = {};
@@ -2541,8 +3012,23 @@ async function saveConfig() {
     AI_API_KEY: 'cfg-aiApiKey', AI_BASE_URL: 'cfg-aiBaseUrl', AI_MODEL: 'cfg-aiModel',
     BOT_QQ: 'cfg-botQq', BOT_NICKNAME: 'cfg-botNickname',
     GROUP_WHITELIST: 'cfg-groupWhitelist', MAX_HISTORY: 'cfg-maxHistory',
-    TTS_VOICE: 'cfg-ttsVoice', TTS_SPEED: 'cfg-ttsSpeed', STT_MODEL: 'cfg-sttModel',
+    TTS_PROVIDER: 'cfg-ttsProvider', TTS_SERVICE_URL: 'cfg-ttsServiceUrl',
+    TTS_BACKEND: 'cfg-ttsBackend', TTS_MODEL: 'cfg-ttsModel', TTS_MODEL_DIR: 'cfg-ttsModelDir',
+    TTS_VOICE: 'cfg-ttsVoice', TTS_SPEED: 'cfg-ttsSpeed', TTS_STYLE: 'cfg-ttsStyle',
+    TTS_SANITIZE_WHITELIST: 'cfg-ttsSanitizeWhitelist', TTS_SANITIZE_BLACKLIST: 'cfg-ttsSanitizeBlacklist',
+    TTS_PREVIEW_TEXT: 'cfg-ttsPreviewText', TTS_TIMEOUT_MS: 'cfg-ttsTimeoutMs',
+    TTS_RUNTIME_POLICY: 'cfg-ttsRuntimePolicy', TTS_FALLBACK_CHAIN: 'cfg-ttsFallbackChain',
+    TTS_LONG_TEXT_PREFERRED_BACKEND: 'cfg-ttsLongTextPreferredBackend', TTS_LONG_TEXT_THRESHOLD: 'cfg-ttsLongTextThreshold',
+    TTS_RVC_SHORT_TEXT_MAX_LENGTH: 'cfg-ttsRvcShortTextMaxLength', TTS_DEFAULT_CHARACTER: 'cfg-ttsDefaultCharacter',
+    TTS_CHARACTER_MODEL_MAP: 'cfg-ttsCharacterModelMap', TTS_GROUP_VOICE_ROLE_MAP: 'cfg-ttsGroupVoiceRoleMap',
+    STT_MODEL: 'cfg-sttModel',
     SCHEDULE_GROUPS: 'cfg-scheduleGroups', ASTRBOT_QQ: 'cfg-astrbotQq',
+    ASTRBOT_COMPLEX_TASK_KEYWORDS: 'cfg-astrbotComplexTaskKeywords',
+    ASTRBOT_COMPLEX_TASK_GROUP_ALLOWLIST: 'cfg-astrbotComplexTaskGroupAllowlist',
+    ASTRBOT_COMPLEX_TASK_GROUP_DENYLIST: 'cfg-astrbotComplexTaskGroupDenylist',
+    ASTRBOT_COMPLEX_TASK_GROUP_ROUTE_OVERRIDES: 'cfg-astrbotComplexTaskGroupRouteOverrides',
+    ASTRBOT_COMPLEX_TASK_MIN_LENGTH: 'cfg-astrbotComplexTaskMinLength',
+    ASTRBOT_TIMEOUT_MS: 'cfg-astrbotTimeoutMs',
     SELF_LEARNING_DATA_DIR: 'cfg-selfLearningDataDir',
     SELF_LEARNING_TARGETS: 'cfg-selfLearningTargets',
     SELF_LEARNING_BLACKLIST: 'cfg-selfLearningBlacklist',
@@ -2561,9 +3047,15 @@ async function saveConfig() {
     const el = document.getElementById(id);
     if (el && el.value.trim()) data[envKey] = el.value.trim();
   }
+  data.TTS_SANITIZE_WHITELIST = (document.getElementById('cfg-ttsSanitizeWhitelist').value || '').trim();
+  data.TTS_SANITIZE_BLACKLIST = (document.getElementById('cfg-ttsSanitizeBlacklist').value || '').trim();
   data.AT_TRIGGER = document.getElementById('cfg-atTrigger').classList.contains('on') ? 'true' : 'false';
   data.TTS_ENABLED = document.getElementById('cfg-ttsEnabled').classList.contains('on') ? 'true' : 'false';
+  data.TTS_FALLBACK_TO_BAIDU = document.getElementById('cfg-ttsFallbackToBaidu').classList.contains('on') ? 'true' : 'false';
+  data.TTS_EXPERIMENTAL_RVC_ENABLED = document.getElementById('cfg-ttsExperimentalRvcEnabled').classList.contains('on') ? 'true' : 'false';
   data.STT_ENABLED = document.getElementById('cfg-sttEnabled').classList.contains('on') ? 'true' : 'false';
+  data.ASTRBOT_ENABLED_COMPLEX_TASKS = document.getElementById('cfg-astrbotEnabledComplexTasks').classList.contains('on') ? 'true' : 'false';
+  data.ASTRBOT_FALLBACK_TO_LOCAL = document.getElementById('cfg-astrbotFallbackToLocal').classList.contains('on') ? 'true' : 'false';
   data.SELF_LEARNING_ENABLED = document.getElementById('cfg-selfLearningEnabled').classList.contains('on') ? 'true' : 'false';
   data.SELF_LEARNING_ENABLE_ML = document.getElementById('cfg-selfLearningEnableMl').classList.contains('on') ? 'true' : 'false';
 
@@ -2577,6 +3069,781 @@ async function saveConfig() {
   } else {
     toast('保存配置失败', 'error');
   }
+}
+
+function getAstrbotFilteredEvents(snapshot) {
+  const statusFilter = (document.getElementById('astrbotEventFilterStatus') || {}).value || 'all';
+  const routeFilter = (document.getElementById('astrbotEventFilterRoute') || {}).value || 'all';
+  const keywordFilter = (((document.getElementById('astrbotEventFilterKeyword') || {}).value) || '').trim().toLowerCase();
+  return (snapshot && snapshot.recentEvents ? snapshot.recentEvents : []).filter(function(item) {
+    if (statusFilter !== 'all' && item.status !== statusFilter) return false;
+    if (routeFilter === 'none' && item.route) return false;
+    if (routeFilter !== 'all' && routeFilter !== 'none' && item.route !== routeFilter) return false;
+    if (keywordFilter) {
+      const haystack = ((item.reason || '') + ' ' + (item.preview || '')).toLowerCase();
+      if (!haystack.includes(keywordFilter)) return false;
+    }
+    return true;
+  });
+}
+
+function updateAstrbotEventFilter() {
+  updateAstrbotComplexTaskStatus(state.astrbot ? state.astrbot.snapshot : null);
+}
+
+function updateAstrbotComplexTaskStatus(snapshot) {
+  const pill = document.getElementById('astrbotComplexTaskStatus');
+  const meta = document.getElementById('astrbotComplexTaskMeta');
+  const detail = document.getElementById('astrbotComplexTaskDetail');
+  if (state.astrbot) state.astrbot.snapshot = snapshot || null;
+  if (!pill || !meta) return;
+  if (!snapshot || !snapshot.configured) {
+    pill.textContent = '复杂任务委托：未配置';
+    pill.className = 'voice-status-pill error';
+    meta.textContent = '尚未配置 AstrBot QQ 号，复杂任务自动委托不会启用。';
+    if (detail) {
+      detail.innerHTML = '<div class="voice-model-panel-title">AstrBot 联动详情</div><div class="voice-muted">尚未配置 AstrBot QQ 号。</div>';
+    }
+    return;
+  }
+  const enabled = document.getElementById('cfg-astrbotEnabledComplexTasks')?.classList.contains('on');
+  pill.textContent = enabled ? '复杂任务委托：已启用' : '复杂任务委托：待开启';
+  pill.className = 'voice-status-pill ' + (enabled ? 'ok' : 'error');
+  meta.textContent =
+    '自动委托 ' + (snapshot.complexTaskRequests || 0) +
+    ' 次，显式委托 ' + (snapshot.explicitRequests || 0) +
+    ' 次，回退本地 ' + (snapshot.fallbackToLocalCount || 0) +
+    ' 次，待回包 ' + (snapshot.pendingReplyCount || 0) + ' 条。';
+  if (detail) {
+    const events = getAstrbotFilteredEvents(snapshot);
+    const decisionCounts = snapshot.decisionCounts || {};
+    const lastEvent = snapshot.lastEvent || null;
+    const topReasons = Object.entries(decisionCounts).slice(0, 6).map(function(entry) {
+      return entry[0] + ':' + entry[1];
+    }).join(' / ');
+    detail.innerHTML = '<div class="voice-model-panel-title">AstrBot 联动详情</div>'
+      + '<div class="voice-model-list">'
+      + '<div><strong>激活转发群</strong>：' + esc((snapshot.activeGroups || []).join(', ') || '无') + '</div>'
+      + '<div><strong>最近匹配关键词</strong>：' + esc((snapshot.lastMatchedKeywords || []).join(', ') || '无') + '</div>'
+      + '<div><strong>最近决策</strong>：' + esc(lastEvent ? ((lastEvent.status || '-') + ' / ' + (lastEvent.reason || '-') + ' / 群' + (lastEvent.groupId || '-')) : '暂无') + '</div>'
+      + '<div><strong>决策计数</strong>：' + esc(topReasons || '暂无') + '</div>'
+      + '<div><strong>筛选结果</strong>：' + esc(String(events.length)) + ' / ' + esc(String((snapshot.recentEvents || []).length)) + '</div>'
+      + '<div><strong>最近事件</strong>：' + (events.length
+        ? events.slice(0, 5).map(function(item) {
+            return '<div>' + esc(item.status + ' / ' + (item.route || '-') + ' / ' + (item.reason || '-') + ' / 群' + (item.groupId || '-') + (item.preview ? (' / ' + item.preview) : '')) + '</div>';
+          }).join('')
+        : '<div>暂无</div>') + '</div>'
+      + '</div>';
+  }
+}
+
+// ========== Voice Broadcast Plugin ==========
+function currentVoicePayload() {
+  return {
+    text: (document.getElementById('cfg-ttsPreviewText').value || '').trim(),
+    backend: (document.getElementById('cfg-ttsBackend').value || '').trim(),
+    modelId: (document.getElementById('cfg-ttsModel').value || '').trim(),
+    voice: (document.getElementById('cfg-ttsVoice').value || '').trim(),
+    style: (document.getElementById('cfg-ttsStyle').value || '').trim(),
+    speed: Number(document.getElementById('cfg-ttsSpeed').value || 1),
+  };
+}
+
+function getSelectedVoiceBackend() {
+  return (document.getElementById('cfg-ttsBackend').value || '').trim();
+}
+
+function getSelectedVoiceModelId() {
+  return (document.getElementById('cfg-ttsModel').value || '').trim();
+}
+
+function getVoiceModelEntry(modelId) {
+  return (state.voice.models || []).find(function(item) { return item.id === modelId; }) || null;
+}
+
+function getVoiceBackendEntry(backendId) {
+  return (state.voice.backends || []).find(function(item) { return item.id === backendId; }) || null;
+}
+
+function isVoiceBackendAvailable(backendId) {
+  const entry = getVoiceBackendEntry(backendId);
+  return !!(entry && entry.available);
+}
+
+function getPairedVoiceModel(modelEntry, backendId) {
+  if (!modelEntry || !backendId) return null;
+  const candidates = (state.voice.models || []).filter(function(item) {
+    if (!item || item.id === modelEntry.id) return false;
+    if ((item.backend || '') !== backendId) return false;
+    return (item.character || '') === (modelEntry.character || '');
+  });
+  candidates.sort(function(a, b) {
+    const aInstalled = a.installed ? 0 : 1;
+    const bInstalled = b.installed ? 0 : 1;
+    if (aInstalled !== bInstalled) return aInstalled - bInstalled;
+    const aV2 = /-v2\b/i.test(a.id || '') ? 0 : 1;
+    const bV2 = /-v2\b/i.test(b.id || '') ? 0 : 1;
+    if (aV2 !== bV2) return aV2 - bV2;
+    return String(a.name || a.id || '').localeCompare(String(b.name || b.id || ''), 'zh-CN');
+  });
+  return candidates[0] || null;
+}
+
+function formatVoiceRisk(risk) {
+  const map = { low: '低', medium: '中', high: '高' };
+  return map[risk] || risk || '-';
+}
+
+function formatVoiceRouteMap(input) {
+  if (!input) return '';
+  if (typeof input === 'string') return input;
+  if (typeof input !== 'object') return String(input);
+  return Object.keys(input).map(function(key) {
+    return key + ':' + input[key];
+  }).join(',');
+}
+
+function setVoiceBackend(backendId, options) {
+  const nextBackend = (backendId || '').trim();
+  const backendEl = document.getElementById('cfg-ttsBackend');
+  if (!backendEl || !nextBackend) return;
+  backendEl.value = nextBackend;
+  renderVoiceBackends(state.voice.backends || []);
+  renderVoiceModels(state.voice.models || []);
+  if (!(options && options.silent)) {
+    toast('已切换默认语音后端，记得保存到 .env', 'success');
+  }
+}
+
+function previewVoiceBackend(modelId, backendId, targetModelId, forceText) {
+  if (backendId) {
+    setVoiceBackend(backendId, { silent: true });
+  }
+  previewVoice(targetModelId || modelId, forceText);
+}
+
+function renderVoiceStatus(data) {
+  const statusEl = document.getElementById('voiceServiceStatus');
+  const metaEl = document.getElementById('voiceServiceMeta');
+  const telemetryEl = document.getElementById('voiceTelemetryMeta');
+  if (!statusEl || !metaEl || !telemetryEl) return;
+  const status = (data && data.status) || {};
+  const telemetry = (data && data.telemetry) || {};
+  const runtimePolicy = ((data && data.defaults) || {}).runtimePolicy || {};
+  const backendHealth = status.backends || {};
+  const fallbackChain = Array.isArray(runtimePolicy.fallbackChain) ? runtimePolicy.fallbackChain : [];
+  const roleMap = formatVoiceRouteMap(runtimePolicy.characterModelMap);
+  const groupRoleMap = formatVoiceRouteMap(runtimePolicy.groupVoiceRoleMap);
+  statusEl.className = 'voice-status-pill ' + (status.ok ? 'ok' : 'error');
+  statusEl.textContent = status.ok ? '语音服务状态：在线' : '语音服务状态：离线';
+  metaEl.textContent = status.ok
+    ? ('默认后端：' + (status.defaultBackend || 'unknown')
+      + ' | 运行策略：' + (runtimePolicy.mode || 'config-only')
+      + ' | 默认角色：' + (runtimePolicy.defaultCharacter || '未设置')
+      + ' | 长句首选：' + (runtimePolicy.longTextPreferredBackend || '未设置')
+      + ' | 回退链：' + (fallbackChain.length ? fallbackChain.join(' -> ') : '无')
+      + ' | RVC服务：' + (backendHealth.rvcAvailable ? '已连接' : (backendHealth.rvcAvailabilityReason || '未接入'))
+      + (roleMap ? (' | 角色映射：' + roleMap) : '')
+      + (groupRoleMap ? (' | 群角色：' + groupRoleMap) : '')
+      + ' | 模型目录：' + (status.modelDir || 'unknown'))
+    : ('错误：' + (status.error || '未连接到本机 Python 语音服务'));
+  telemetryEl.textContent =
+    'TTS统计：请求 ' + fmt(telemetry.totalRequests) +
+    ' / 命中 ' + fmt(telemetry.cacheHits) +
+    ' / 本地成功 ' + fmt(telemetry.localSuccesses) +
+    ' / 回退成功 ' + fmt(telemetry.fallbackSuccesses) +
+    ' / 回退链触发 ' + fmt(telemetry.fallbackAttempts || 0) +
+    ' / 长句 ' + fmt(telemetry.longTextRequests || 0) +
+    ' / RVC首选 ' + fmt(telemetry.rvcRequests || 0) +
+    ' / 失败 ' + fmt(telemetry.failures) +
+    ' / 平均耗时 ' + fmt(telemetry.averageDurationMs) + 'ms' +
+    (telemetry.lastRequest
+      ? (' / 最近：' + (telemetry.lastRequest.backend || 'unknown') +
+        ' via ' + (telemetry.lastRequest.source || 'unknown') +
+        ' @x' + String(telemetry.lastRequest.finalSpeed || 1) +
+        (telemetry.lastRequest.character ? (' / ' + telemetry.lastRequest.character) : '') +
+        (telemetry.lastRequest.runtimePolicy ? (' / ' + telemetry.lastRequest.runtimePolicy) : '') +
+        (telemetry.lastRequest.cacheHit ? ' / cache-hit' : ''))
+      : '') +
+    (telemetry.lastError ? (' / 最近错误：' + telemetry.lastError) : '');
+}
+
+function renderVoiceBackends(backends) {
+  const wrap = document.getElementById('voiceBackends');
+  if (!wrap) return;
+  if (!backends || !backends.length) {
+    wrap.innerHTML = '<div class="empty-state" style="padding:20px 0;"><div class="empty-text">暂无可用语音后端</div></div>';
+    return;
+  }
+  const currentBackend = getSelectedVoiceBackend();
+  wrap.innerHTML = backends.map(function(item) {
+    const tags = [];
+    if (item.requiresGpu) tags.push('GPU');
+    if (item.supportsModels) tags.push('模型切换');
+    if (item.supportsStyle) tags.push('风格控制');
+    tags.push(item.available ? '可连接' : '待配置');
+    const isActive = currentBackend === item.id;
+    return '<div class="voice-backend-card' + (isActive ? ' active' : '') + (item.available ? '' : ' unavailable') + '">'
+      + '<div class="voice-card-head"><div class="voice-card-title">' + esc(item.name || item.id) + '</div>'
+      + '<span class="voice-card-status' + (isActive ? ' active' : '') + '">' + (isActive ? '当前默认' : (item.available ? '可切换' : '待接入')) + '</span></div>'
+      + '<div class="voice-card-sub">' + esc(item.description || '') + '</div>'
+      + (item.available ? '' : ('<div class="voice-card-sub" style="margin-top:8px;">原因：' + esc(item.availabilityReason || '未接入') + '</div>'))
+      + (item.setupHint ? ('<div class="voice-card-sub" style="margin-top:6px;">提示：' + esc(item.setupHint) + '</div>') : '')
+      + '<div class="voice-tags">' + tags.map(function(tag) { return '<span class="voice-tag">' + esc(tag) + '</span>'; }).join('') + '</div>'
+      + '<div class="voice-model-actions" style="margin-top:10px;">'
+      + '<button class="voice-card-btn ' + (isActive ? 'success' : 'primary') + '" ' + (item.available ? '' : 'disabled') + ' onclick="setVoiceBackend(\'' + esc(item.id || '').replace(/'/g, '&#39;') + '\')">' + (isActive ? '已启用' : '设为默认') + '</button>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+function setVoiceModel(modelId, backend) {
+  const modelEl = document.getElementById('cfg-ttsModel');
+  if (modelEl) modelEl.value = modelId || '';
+  if (backend) setVoiceBackend(backend, { silent: true });
+  renderVoiceModels(state.voice.models || []);
+  toast('已选中默认语音模型，记得保存到 .env', 'success');
+}
+
+function renderVoiceModels(models) {
+  const wrap = document.getElementById('voiceModels');
+  if (!wrap) return;
+  if (!models || !models.length) {
+    wrap.innerHTML = '<div class="empty-state" style="padding:20px 0;"><div class="empty-text">暂未发现模型，请先导入 catalog.json 或 voice-model.json</div></div>';
+    return;
+  }
+  const currentModelId = getSelectedVoiceModelId();
+  const currentBackend = getSelectedVoiceBackend();
+  wrap.innerHTML = models.map(function(item) {
+    const tags = item.tags || [];
+    const installedText = item.installed ? '已安装' : '待导入';
+    const sample = item.sampleText || '你好呀，欢迎使用 QQTalker 语音播报插件。';
+    const recommendedBackend = item.recommendedBackend || item.backend;
+    const alternateBackends = item.alternateBackends || [];
+    const isActive = currentModelId === item.id;
+    const diag = item.diagnostics || {};
+    const diagSummary = (diag.summary || []).slice(0, 3);
+    const diagRiskText = diag.risk ? ('诊断风险：' + formatVoiceRisk(diag.risk)) : '';
+    const previewHint = item.previewHint || '';
+    const compareBackend = recommendedBackend && recommendedBackend !== currentBackend ? recommendedBackend : ((alternateBackends || []).find(function(entry) { return entry !== currentBackend; }) || '');
+    const compareModel = compareBackend ? getPairedVoiceModel(item, compareBackend) : null;
+    const compareModelId = compareModel ? compareModel.id : '';
+    const canUseModel = (item.installed || item.backend === 'edge-tts') && isVoiceBackendAvailable(item.backend);
+    const canCompare = compareBackend && compareModel && isVoiceBackendAvailable(compareBackend) && (compareModel.installed || compareBackend === 'edge-tts');
+    const compareBackendEntry = compareBackend ? getVoiceBackendEntry(compareBackend) : null;
+    return '<div class="voice-model-card' + (isActive ? ' active' : '') + (item.installed ? '' : ' unavailable') + '">'
+      + '<div class="voice-card-head"><div class="voice-card-title">' + esc(item.name || item.id) + '</div>'
+      + '<span class="voice-card-status' + (item.experimental ? ' experimental' : (isActive ? ' active' : '')) + '">' + esc(item.qualityTier || (item.experimental ? 'experimental' : 'standard')) + '</span></div>'
+      + '<div class="voice-card-sub">' + esc((item.character || item.backend || '') + (item.notes ? ' · ' + item.notes : '')) + '</div>'
+      + '<div class="voice-tags">' + tags.map(function(tag) { return '<span class="voice-tag">' + esc(tag) + '</span>'; }).join('') + '</div>'
+      + '<div class="voice-model-meta"><span>推荐后端：' + esc(recommendedBackend || '-') + '</span><span>' + esc(installedText) + '</span></div>'
+      + '<div class="voice-card-sub" style="margin-top:8px;">训练状态：' + esc(item.trainingStatus || '未标注') + (alternateBackends.length ? (' / 备用：' + esc(alternateBackends.join('、'))) : '') + '</div>'
+      + '<div class="voice-card-sub" style="margin-top:10px;">试听文案：' + esc(sample) + '</div>'
+      + (!isVoiceBackendAvailable(item.backend) ? ('<div class="voice-card-sub" style="margin-top:8px;">当前后端未接入：' + esc(((getVoiceBackendEntry(item.backend) || {}).availabilityReason) || item.backend) + '</div>') : '')
+      + '<div class="voice-model-actions wrap">'
+      + '<button class="voice-card-btn primary" ' + (canUseModel ? '' : 'disabled') + ' onclick="setVoiceModel(\'' + esc(item.id).replace(/'/g, '&#39;') + '\', \'' + esc(recommendedBackend || item.backend || '').replace(/'/g, '&#39;') + '\')">设为默认</button>'
+      + '<button class="voice-card-btn" ' + (canUseModel ? '' : 'disabled') + ' onclick="previewVoice(\'' + esc(item.id).replace(/'/g, '&#39;') + '\', \'' + esc(sample).replace(/'/g, '&#39;') + '\')">试听当前</button>'
+      + (compareBackend ? ('<button class="voice-card-btn" ' + (canCompare ? '' : 'disabled') + ' onclick="previewVoiceBackend(\'' + esc(item.id).replace(/'/g, '&#39;') + '\', \'' + esc(compareBackend).replace(/'/g, '&#39;') + '\', \'' + esc(compareModelId).replace(/'/g, '&#39;') + '\', \'' + esc(sample).replace(/'/g, '&#39;') + '\')">试听推荐</button>') : '')
+      + '</div>'
+      + (previewHint || diagSummary.length || diagRiskText
+        ? ('<div class="voice-model-panel">'
+          + '<div class="voice-model-panel-title">角色建议</div>'
+          + '<div class="voice-model-list">'
+          + (previewHint ? ('<div>' + esc(previewHint) + '</div>') : '')
+          + (diagRiskText ? ('<div>' + esc(diagRiskText) + '</div>') : '')
+          + (compareBackend && !compareModel ? ('<div>缺少同角色的推荐模型条目：' + esc(compareBackend) + '</div>') : '')
+          + (compareBackend && compareModel && !compareModel.installed ? ('<div>推荐模型待导入：' + esc(compareModel.name || compareModel.id) + '</div>') : '')
+          + (compareBackend && !canCompare && compareBackendEntry ? ('<div>推荐后端未接入：' + esc(compareBackendEntry.availabilityReason || compareBackend) + '</div>') : '')
+          + diagSummary.map(function(line) { return '<div>' + esc(line) + '</div>'; }).join('')
+          + '</div></div>')
+        : '')
+      + '</div>';
+  }).join('');
+}
+
+function renderVoiceTrainingCharacters(characters) {
+  const wrap = document.getElementById('voiceTrainingCharacters');
+  if (!wrap) return;
+  if (!characters || !characters.length) {
+    wrap.innerHTML = '<div class="empty-state" style="padding:20px 0;"><div class="empty-text">训练工作区还没有角色目录</div></div>';
+    return;
+  }
+  wrap.innerHTML = characters.map(function(item) {
+    const qualityText = '来源 ' + (item.sourceCount || 0) + ' / 版本 ' + (item.versionCount || 0)
+      + ' / 切片 ' + (item.totalSegments || 0) + ' / 可用 ' + (item.usableSegments || 0);
+    const assetText = 'raw ' + (item.rawFileCount || 0)
+      + ' / cleaned ' + (item.cleanedFileCount || 0)
+      + ' / segments ' + (item.segmentFileCount || 0);
+    const flags = [
+      item.summaryReady ? 'summary-ready' : 'summary-missing',
+      item.manifestReady ? 'manifest-ready' : 'manifest-missing',
+      item.versionsReady ? 'versions-ready' : 'versions-missing',
+    ].join(' | ');
+    return '<div class="voice-model-card">'
+      + '<div class="voice-card-head"><div><div class="voice-card-title">' + esc(item.name || item.id) + '</div>'
+      + '<div class="voice-card-sub">' + esc(item.strategy || '暂无训练策略说明') + '</div></div>'
+      + '<span class="voice-card-status ' + ((item.usableSegments || 0) > 0 ? 'active' : 'experimental') + '">'
+      + (((item.usableSegments || 0) > 0) ? '可继续训练' : '待整理') + '</span></div>'
+      + '<div class="voice-model-meta"><span>' + esc(qualityText) + '</span><span>' + esc(assetText) + '</span></div>'
+      + '<div class="voice-muted" style="margin-top:10px;">' + esc(flags)
+      + (item.lastGeneratedAt ? (' / manifest ' + esc(item.lastGeneratedAt)) : '') + '</div>'
+      + '<div class="voice-model-actions wrap">'
+      + '<button class="voice-card-btn primary" onclick="loadVoiceTrainingDetail(\'' + esc(item.id) + '\')">查看详情</button>'
+      + '<button class="voice-card-btn" onclick="runVoiceTrainingAction(\'clips-suggest\', \'' + esc(item.id) + '\')">建议切片</button>'
+      + '<button class="voice-card-btn" onclick="runVoiceTrainingAction(\'transcribe\', \'' + esc(item.id) + '\')">批量转写</button>'
+      + '<button class="voice-card-btn success" onclick="runVoiceTrainingAction(\'manifest\', \'' + esc(item.id) + '\')">生成清单</button>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+function renderVoiceTrainingScripts(scripts) {
+  const wrap = document.getElementById('voiceTrainingScripts');
+  if (!wrap) return;
+  if (!scripts || !scripts.length) {
+    wrap.innerHTML = '<div class="voice-muted">暂无训练脚本说明</div>';
+    return;
+  }
+  wrap.innerHTML = scripts.map(function(item) {
+    return '<div><strong>' + esc(item.label) + '</strong>：'
+      + esc(item.description) + ' <code>' + esc(item.command) + '</code></div>';
+  }).join('');
+}
+
+function renderVoiceTrainingQueue(taskState) {
+  const wrap = document.getElementById('voiceTrainingQueue');
+  if (!wrap) return;
+  const runningTask = taskState && taskState.runningTask ? taskState.runningTask : null;
+  const queuedTasks = taskState && taskState.queuedTasks ? taskState.queuedTasks : [];
+  if (!runningTask && !queuedTasks.length) {
+    wrap.innerHTML = '<div class="voice-muted">当前没有排队中的训练任务。</div>';
+    return;
+  }
+  wrap.innerHTML = ''
+    + (runningTask
+      ? ('<div><strong>运行中</strong> / ' + esc(runningTask.action)
+        + (runningTask.characterId ? (' / ' + esc(runningTask.characterId)) : '')
+        + (runningTask.startedAt ? (' / started ' + esc(runningTask.startedAt)) : '')
+        + '</div>')
+      : '')
+    + (queuedTasks.length
+      ? queuedTasks.map(function(task, index) {
+          return '<div><strong>排队 #' + esc(String(index + 1)) + '</strong> / ' + esc(task.action)
+            + (task.characterId ? (' / ' + esc(task.characterId)) : '')
+            + (task.queuedAt ? (' / queued ' + esc(task.queuedAt)) : '')
+            + '</div>';
+        }).join('')
+      : '');
+}
+
+function renderVoiceTrainingTasks(tasks) {
+  const wrap = document.getElementById('voiceTrainingTasks');
+  if (!wrap) return;
+  if (!tasks || !tasks.length) {
+    wrap.innerHTML = '<div class="voice-muted">最近还没有训练任务记录。</div>';
+    return;
+  }
+  wrap.innerHTML = tasks.map(function(task) {
+    return '<div><strong>' + esc(task.action) + '</strong>'
+      + (task.characterId ? (' / ' + esc(task.characterId)) : '')
+      + ' / ' + esc(task.status)
+      + (task.queuedAt ? (' / queued ' + esc(task.queuedAt)) : '')
+      + (task.startedAt ? (' / started ' + esc(task.startedAt)) : '')
+      + (task.finishedAt ? (' / ' + esc(task.finishedAt)) : '')
+      + (task.error ? (' / error: ' + esc(task.error)) : '')
+      + '</div>';
+  }).join('');
+}
+
+function updateVoiceTrainingStatus(overview, syncOutput) {
+  const pill = document.getElementById('voiceTrainingStatus');
+  const meta = document.getElementById('voiceTrainingMeta');
+  if (!pill || !meta) return;
+  if (!overview) {
+    pill.textContent = '训练工作区：不可用';
+    pill.className = 'voice-status-pill error';
+    meta.textContent = '未读取到训练工作区。';
+    return;
+  }
+  const characters = overview.characters || [];
+  const readyCount = characters.filter(function(item) { return (item.usableSegments || 0) > 0; }).length;
+  const recentTask = overview.recentTasks && overview.recentTasks.length ? overview.recentTasks[0] : null;
+  const taskState = overview.taskState || {};
+  const queuedCount = (taskState.queuedTasks || []).length;
+  const runningTask = taskState.runningTask || null;
+  pill.textContent = '训练工作区：已连接';
+  pill.className = 'voice-status-pill ok';
+  meta.textContent = '角色 ' + characters.length + ' 个，可继续训练 ' + readyCount
+    + ' 个，根目录 ' + (overview.trainingRoot || '-')
+    + (runningTask ? ('，运行中：' + runningTask.action + (runningTask.characterId ? ('/' + runningTask.characterId) : '')) : '')
+    + (queuedCount ? ('，排队中：' + queuedCount + ' 个') : '')
+    + (recentTask ? ('，最近任务：' + recentTask.action + ' / ' + recentTask.status) : '')
+    + (syncOutput ? ('，最近同步输出：' + syncOutput) : '');
+}
+
+function applyVoiceTrainingSnapshot(overview, detail, syncOutput) {
+  state.voiceTraining.overview = overview || state.voiceTraining.overview;
+  if (detail !== undefined) {
+    state.voiceTraining.detail = detail;
+  }
+  renderVoiceTrainingScripts(state.voiceTraining.overview ? state.voiceTraining.overview.scripts : []);
+  renderVoiceTrainingQueue(state.voiceTraining.overview ? state.voiceTraining.overview.taskState : null);
+  renderVoiceTrainingTasks(state.voiceTraining.overview ? state.voiceTraining.overview.recentTasks : []);
+  renderVoiceTrainingCharacters(state.voiceTraining.overview ? state.voiceTraining.overview.characters : []);
+  renderVoiceTrainingDetail(state.voiceTraining.detail);
+  updateVoiceTrainingStatus(state.voiceTraining.overview, syncOutput || '');
+}
+
+async function loadVoicePanel() {
+  const statusRes = await api('/api/voice/status');
+  state.voice.status = statusRes;
+  if (statusRes && statusRes.defaults && statusRes.defaults.backend && !getSelectedVoiceBackend()) {
+    document.getElementById('cfg-ttsBackend').value = statusRes.defaults.backend;
+  }
+  renderVoiceStatus(statusRes);
+
+  const backendsRes = await api('/api/voice/backends');
+  state.voice.backends = backendsRes.backends || [];
+  renderVoiceBackends(state.voice.backends);
+
+  const modelsRes = await api('/api/voice/models');
+  state.voice.models = modelsRes.models || [];
+  renderVoiceModels(state.voice.models);
+  await loadVoiceTrainingPanel();
+}
+
+async function loadVoiceTrainingPanel() {
+  const res = await api('/api/voice-training/overview');
+  state.voiceTraining.overview = (res && res.overview) ? res.overview : null;
+  applyVoiceTrainingSnapshot(state.voiceTraining.overview, state.voiceTraining.detail, '');
+}
+
+async function loadVoiceTrainingDetail(characterId) {
+  state.voiceTraining.selectedCharacterId = characterId || '';
+  const res = await api('/api/voice-training/detail?character=' + encodeURIComponent(characterId));
+  if (!res || res.success === false) {
+    toast('加载训练详情失败：' + ((res && res.error) || 'unknown'), 'error');
+    return;
+  }
+  state.voiceTraining.detail = res.detail;
+  renderVoiceTrainingDetail(res.detail);
+}
+
+async function refreshVoiceTrainingTaskState() {
+  if (activeConfigSection !== 'voice') return;
+  const query = state.voiceTraining.selectedCharacterId
+    ? ('?character=' + encodeURIComponent(state.voiceTraining.selectedCharacterId))
+    : '';
+  const res = await api('/api/voice-training/task-state' + query);
+  if (!res || res.success === false) return;
+  applyVoiceTrainingSnapshot(res.overview || state.voiceTraining.overview, res.detail !== undefined ? res.detail : state.voiceTraining.detail, '');
+}
+
+function startVoiceTrainingTaskPolling() {
+  stopVoiceTrainingTaskPolling();
+  voiceTrainingTaskPoller = setInterval(function() {
+    refreshVoiceTrainingTaskState().catch(function() {});
+  }, 4000);
+}
+
+function stopVoiceTrainingTaskPolling() {
+  if (voiceTrainingTaskPoller) {
+    clearInterval(voiceTrainingTaskPoller);
+    voiceTrainingTaskPoller = null;
+  }
+}
+
+function renderVoiceTrainingDetail(detail) {
+  const wrap = document.getElementById('voiceTrainingDetail');
+  if (!wrap) return;
+  if (!detail) {
+    wrap.innerHTML = '<div class="voice-model-panel-title">角色训练详情</div><div class="voice-muted">点击上方角色卡片可查看来源、版本和 manifest 条目。</div>';
+    return;
+  }
+  const sources = detail.sourceItems || [];
+  const versions = detail.versionItems || [];
+  const entries = detail.manifestEntries || [];
+  const releases = detail.releaseHistory || [];
+  const reviewEntries = detail.reviewEntries || [];
+  const versionRows = versions.slice(0, 8).map(function(item) {
+    const versionId = item.id || 'unknown';
+    const backend = item.backend || '-';
+    const stage = item.stage || '-';
+    const active = item.publish && item.publish.active;
+    return '<div><strong>' + esc(versionId) + '</strong> / ' + esc(backend) + ' / ' + esc(stage)
+      + (active ? ' / 当前发布' : '')
+      + ' <button class="voice-card-btn success" style="margin-left:8px;" onclick="publishVoiceTrainingModel(\'' + esc(detail.id).replace(/'/g, '&#39;') + '\', \'' + esc(versionId).replace(/'/g, '&#39;') + '\')">入库模型</button></div>';
+  }).join('');
+  const releaseRows = releases.slice(0, 8).map(function(item) {
+    return '<div><strong>' + esc(item.versionId || 'unknown') + '</strong>'
+      + ' / ' + esc(item.modelId || '-')
+      + ' / ' + esc(item.publishedAt || '-')
+      + (item.rolledBackAt ? (' / rolled-back ' + esc(item.rolledBackAt)) : '')
+      + (!item.rolledBackAt
+        ? (' <button class="voice-card-btn" style="margin-left:8px;" onclick="rollbackVoiceTrainingRelease(\'' + esc(detail.id).replace(/'/g, '&#39;') + '\', \'' + esc(item.releaseId).replace(/'/g, '&#39;') + '\')">回滚到发布前</button>')
+        : '')
+      + '</div>';
+  }).join('');
+  const reviewRows = reviewEntries.slice(0, 8).map(function(item) {
+    const entryId = item.id || 'unknown';
+    return '<div class="voice-model-panel" style="margin-top:8px;">'
+      + '<div class="voice-card-sub"><strong>' + esc(entryId) + '</strong> / ' + esc(item.reviewStatus || '-') + ' / usable=' + esc(String(Boolean(item.usableForTrain))) + '</div>'
+      + '<textarea class="config-input" id="review-transcript-' + esc(entryId) + '" style="margin-top:8px;min-height:68px;">' + esc(item.transcript || '') + '</textarea>'
+      + '<input class="config-input" id="review-notes-' + esc(entryId) + '" style="margin-top:8px;" value="' + esc(item.notes || '') + '" placeholder="备注">'
+      + '<div class="voice-inline-actions" style="margin-top:8px;">'
+      + '<select class="config-input" id="review-status-' + esc(entryId) + '" style="max-width:180px;">'
+      + '<option value="pending-review"' + ((item.reviewStatus === 'pending-review') ? ' selected' : '') + '>pending-review</option>'
+      + '<option value="needs-manual-review"' + ((item.reviewStatus === 'needs-manual-review') ? ' selected' : '') + '>needs-manual-review</option>'
+      + '<option value="needs-recut"' + ((item.reviewStatus === 'needs-recut') ? ' selected' : '') + '>needs-recut</option>'
+      + '<option value="approved"' + ((item.reviewStatus === 'approved') ? ' selected' : '') + '>approved</option>'
+      + '</select>'
+      + '<select class="config-input" id="review-transcription-' + esc(entryId) + '" style="max-width:180px;">'
+      + '<option value="draft"' + ((item.transcriptionStatus === 'draft') ? ' selected' : '') + '>draft</option>'
+      + '<option value="cleaned"' + ((item.transcriptionStatus === 'cleaned') ? ' selected' : '') + '>cleaned</option>'
+      + '<option value="empty"' + ((item.transcriptionStatus === 'empty') ? ' selected' : '') + '>empty</option>'
+      + '</select>'
+      + '<label class="voice-card-sub"><input type="checkbox" id="review-usable-' + esc(entryId) + '"' + (item.usableForTrain ? ' checked' : '') + '> usableForTrain</label>'
+      + '<button class="voice-card-btn success" onclick="saveVoiceTrainingReview(\'' + esc(detail.id).replace(/'/g, '&#39;') + '\', \'' + esc(entryId).replace(/'/g, '&#39;') + '\')">保存修订</button>'
+      + '</div></div>';
+  }).join('');
+  wrap.innerHTML = '<div class="voice-model-panel-title">' + esc(detail.name || detail.id) + ' 训练详情</div>'
+    + '<div class="voice-muted">space: ' + esc(detail.spaceUrl || '-') + ' / live: ' + esc(detail.liveRoomUrl || '-') + '</div>'
+    + '<div class="voice-inline-actions" style="margin-top:10px;">'
+    + '<button class="voice-card-btn" onclick="runVoiceTrainingAction(\'clips-suggest\', \'' + esc(detail.id) + '\')">建议切片</button>'
+    + '<button class="voice-card-btn" onclick="runVoiceTrainingAction(\'transcribe\', \'' + esc(detail.id) + '\')">批量转写</button>'
+    + '<button class="voice-card-btn success" onclick="runVoiceTrainingAction(\'manifest\', \'' + esc(detail.id) + '\')">生成清单</button>'
+    + '</div>'
+    + '<div class="voice-model-list" style="margin-top:10px;">'
+    + '<div><strong>来源候选</strong>：' + sources.slice(0, 5).map(function(item) { return esc(item.title || item.id || 'unknown'); }).join(' / ') + '</div>'
+    + '<div><strong>训练版本</strong>：</div>' + (versionRows || '<div>暂无</div>')
+    + '<div><strong>发布历史</strong>：</div>' + (releaseRows || '<div>暂无</div>')
+    + '<div><strong>最近 manifest 条目</strong>：' + entries.slice(0, 5).map(function(item) { return esc(item.id || 'unknown'); }).join(' / ') + '</div>'
+    + '<div><strong>浏览器质检与转写修订</strong>：</div>' + (reviewRows || '<div>暂无</div>')
+    + '</div>';
+}
+
+async function syncVoiceTrainingWorkspace() {
+  const res = await api('/api/voice-training/sync', { method: 'POST' });
+  if (!res || res.success === false) {
+    toast('训练工作区同步失败：' + ((res && res.error) || 'unknown'), 'error');
+    return;
+  }
+  applyVoiceTrainingSnapshot(res.overview || null, state.voiceTraining.detail, res.output || '');
+  toast('训练工作区摘要已同步', 'success');
+}
+
+async function runVoiceTrainingAction(action, characterId) {
+  const res = await api('/api/voice-training/run', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: action, characterId: characterId || '' })
+  });
+  if (!res || res.success === false) {
+    toast('训练任务执行失败：' + ((res && res.error) || 'unknown'), 'error');
+    return;
+  }
+  applyVoiceTrainingSnapshot(res.overview || state.voiceTraining.overview, res.detail !== undefined ? res.detail : state.voiceTraining.detail, '');
+  if (res.task && res.task.status === 'queued') {
+    toast('训练任务已入队：' + action, 'success');
+    refreshVoiceTrainingTaskState().catch(function() {});
+    return;
+  }
+  if (action === 'publish-model') {
+    await loadVoicePanel();
+    toast('训练版本已入库并刷新模型目录', 'success');
+    return;
+  }
+  toast('训练任务完成：' + action, 'success');
+}
+
+async function publishVoiceTrainingModel(characterId, versionId) {
+  const res = await api('/api/voice-training/run', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'publish-model', characterId: characterId, versionId: versionId })
+  });
+  if (!res || res.success === false) {
+    toast('训练版本入库失败：' + ((res && res.error) || 'unknown'), 'error');
+    return;
+  }
+  applyVoiceTrainingSnapshot(res.overview || state.voiceTraining.overview, res.detail !== undefined ? res.detail : state.voiceTraining.detail, res.task && res.task.output ? res.task.output : '');
+  await loadVoicePanel();
+  toast('训练版本已入库：' + versionId, 'success');
+}
+
+async function rollbackVoiceTrainingRelease(characterId, releaseId) {
+  const res = await api('/api/voice-training/run', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'rollback-model', characterId: characterId, releaseId: releaseId })
+  });
+  if (!res || res.success === false) {
+    toast('训练版本回滚失败：' + ((res && res.error) || 'unknown'), 'error');
+    return;
+  }
+  applyVoiceTrainingSnapshot(res.overview || state.voiceTraining.overview, res.detail !== undefined ? res.detail : state.voiceTraining.detail, res.task && res.task.output ? res.task.output : '');
+  await loadVoicePanel();
+  toast('训练版本已回滚', 'success');
+}
+
+async function importVoiceTrainingRaw() {
+  const characterId = (document.getElementById('voiceTrainingImportCharacter').value || '').trim();
+  const sourcePath = (document.getElementById('voiceTrainingImportPath').value || '').trim();
+  if (!characterId || !sourcePath) {
+    toast('请先填写导入角色和本地素材路径', 'error');
+    return;
+  }
+  const res = await api('/api/voice-training/run', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'import-raw', characterId: characterId, sourcePath: sourcePath })
+  });
+  if (!res || res.success === false) {
+    toast('导入素材失败：' + ((res && res.error) || 'unknown'), 'error');
+    return;
+  }
+  applyVoiceTrainingSnapshot(res.overview || state.voiceTraining.overview, res.detail !== undefined ? res.detail : state.voiceTraining.detail, res.task && res.task.output ? res.task.output : '');
+  toast('原始素材导入完成', 'success');
+}
+
+async function handleVoiceTrainingUpload(event) {
+  const input = event && event.target;
+  const file = input && input.files && input.files[0];
+  const characterId = (document.getElementById('voiceTrainingImportCharacter').value || '').trim();
+  if (!characterId) {
+    toast('请先填写导入角色，再选择上传文件', 'error');
+    if (input) input.value = '';
+    return;
+  }
+  if (!file) return;
+  if (file.size > 8 * 1024 * 1024) {
+    const uploadId = 'upload-' + Date.now();
+    const chunkSize = 1024 * 1024;
+    let offset = 0;
+    while (offset < file.size) {
+      const chunk = file.slice(offset, offset + chunkSize);
+      const base64 = await new Promise(function(resolve, reject) {
+        const reader = new FileReader();
+        reader.onload = function() {
+          const result = String(reader.result || '');
+          resolve(result.includes(',') ? result.split(',')[1] : result);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(chunk);
+      });
+      const res = await api('/api/voice-training/upload-chunk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          characterId: characterId,
+          uploadId: uploadId,
+          fileName: file.name,
+          fileBase64Chunk: base64,
+          finalize: offset + chunk.size >= file.size,
+        })
+      });
+      if (!res || res.success === false) {
+        toast('分片上传失败：' + ((res && res.error) || 'unknown'), 'error');
+        if (input) input.value = '';
+        return;
+      }
+      applyVoiceTrainingSnapshot(res.overview || state.voiceTraining.overview, res.detail !== undefined ? res.detail : state.voiceTraining.detail, res.output || '');
+      offset += chunk.size;
+    }
+    toast('大文件分片上传完成：' + file.name, 'success');
+    if (input) input.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = async function() {
+    const result = String(reader.result || '');
+    const base64 = result.includes(',') ? result.split(',')[1] : result;
+    const res = await api('/api/voice-training/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'upload-raw',
+        characterId: characterId,
+        fileName: file.name,
+        fileBase64: base64,
+      })
+    });
+    if (!res || res.success === false) {
+      toast('上传素材失败：' + ((res && res.error) || 'unknown'), 'error');
+      if (input) input.value = '';
+      return;
+    }
+    applyVoiceTrainingSnapshot(res.overview || state.voiceTraining.overview, res.detail !== undefined ? res.detail : state.voiceTraining.detail, res.task && res.task.output ? res.task.output : '');
+    toast('上传素材完成：' + file.name, 'success');
+    if (input) input.value = '';
+  };
+  reader.onerror = function() {
+    toast('读取上传文件失败', 'error');
+    if (input) input.value = '';
+  };
+  reader.readAsDataURL(file);
+}
+
+async function saveVoiceTrainingReview(characterId, entryId) {
+  const transcript = (document.getElementById('review-transcript-' + entryId).value || '').trim();
+  const notes = (document.getElementById('review-notes-' + entryId).value || '').trim();
+  const reviewStatus = (document.getElementById('review-status-' + entryId).value || '').trim();
+  const transcriptionStatus = (document.getElementById('review-transcription-' + entryId).value || '').trim();
+  const usableForTrain = document.getElementById('review-usable-' + entryId).checked;
+  const res = await api('/api/voice-training/review', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      characterId: characterId,
+      entryId: entryId,
+      transcript: transcript,
+      notes: notes,
+      reviewStatus: reviewStatus,
+      transcriptionStatus: transcriptionStatus,
+      usableForTrain: usableForTrain,
+    })
+  });
+  if (!res || res.success === false) {
+    toast('保存训练修订失败：' + ((res && res.error) || 'unknown'), 'error');
+    return;
+  }
+  applyVoiceTrainingSnapshot(res.overview || state.voiceTraining.overview, res.detail !== undefined ? res.detail : state.voiceTraining.detail, '');
+  toast('训练修订已保存', 'success');
+}
+
+async function rescanVoiceModels() {
+  const res = await api('/api/voice/models/rescan', { method: 'POST' });
+  state.voice.models = res.models || [];
+  renderVoiceModels(state.voice.models);
+  toast(res.success === false ? '模型目录重扫完成，但语音服务当前不可用' : '模型目录已重扫', res.success === false ? 'error' : 'success');
+}
+
+async function previewVoice(forceModelId, forceText) {
+  const payload = currentVoicePayload();
+  if (forceModelId) payload.modelId = forceModelId;
+  if (forceText) payload.text = forceText;
+  if (!payload.text) {
+    toast('请先填写试听文本', 'error');
+    return;
+  }
+  const result = await api('/api/voice/preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (!result || !result.success) {
+    toast('试听生成失败：' + ((result && result.error) || '语音服务未返回结果'), 'error');
+    return;
+  }
+  const player = document.getElementById('voicePreviewPlayer');
+  const meta = document.getElementById('voicePreviewMeta');
+  player.src = 'data:' + (result.mimeType || 'audio/mpeg') + ';base64,' + result.audioBase64;
+  player.style.display = 'block';
+  if (meta) {
+    meta.textContent = '试听成功：' + (result.modelName || result.modelId || '默认模型') + ' / ' + (result.backend || 'unknown')
+      + ((result.warnings && result.warnings.length) ? (' / ' + result.warnings.join(', ')) : '');
+  }
+  toast('试听音频已生成', 'success');
 }
 
 // ========== Process Page ==========
@@ -2704,6 +3971,13 @@ function renderSimpleEmpty(text) {
 function renderSelfLearningList(items, renderItem) {
   if (!items || !items.length) return renderSimpleEmpty('暂无数据');
   return '<div style="display:flex;flex-direction:column;gap:10px;">' + items.map(renderItem).join('') + '</div>';
+}
+
+function formatUserDisplay(userId, nickname) {
+  var idText = String(userId || '');
+  var nickText = String(nickname || '').trim();
+  if (!nickText) return esc(idText);
+  return esc(nickText) + ' <span style="color:var(--text-muted);font-size:12px;">(' + esc(idText) + ')</span>';
 }
 
 function renderLearningStrategyPanel() {
@@ -2861,7 +4135,7 @@ async function loadSelfLearningPanel(showToast) {
     '<div style="padding:12px;border:1px solid var(--border-color);border-radius:12px;background:rgba(255,255,255,0.02);">' +
       '<div style="display:flex;justify-content:space-between;gap:12px;align-items:center;"><strong>' + esc(item.patternType) + '</strong><span style="color:var(--accent);font-size:12px;">权重 ' + Number(item.weight || 0).toFixed(1) + '</span></div>' +
       '<div style="margin-top:6px;color:var(--text-primary);">' + esc(item.patternValue || '') + '</div>' +
-      '<div style="margin-top:4px;font-size:12px;color:var(--text-muted);">用户 ' + esc(String(item.userId || '')) + ' · 证据 ' + esc(String(item.evidenceCount || 0)) + '</div>' +
+      '<div style="margin-top:4px;font-size:12px;color:var(--text-muted);">用户 ' + formatUserDisplay(item.userId, item.nickname) + ' · 证据 ' + esc(String(item.evidenceCount || 0)) + '</div>' +
     '</div>'
   );
 
@@ -2874,7 +4148,7 @@ async function loadSelfLearningPanel(showToast) {
 
   document.getElementById('slSocialPanel').innerHTML = renderSelfLearningList(state.selfLearning.social.slice(0, 12), item =>
     '<div style="padding:12px;border:1px solid var(--border-color);border-radius:12px;background:rgba(255,255,255,0.02);display:flex;justify-content:space-between;gap:12px;align-items:center;">' +
-      '<div><div><strong>' + esc(String(item.sourceUserId || '')) + '</strong> → <strong>' + esc(String(item.targetUserId || '')) + '</strong></div><div style="margin-top:6px;font-size:12px;color:var(--text-muted);">' + esc(item.relationType || '') + ' · 互动 ' + esc(String(item.interactions || 0)) + '</div></div>' +
+      '<div><div><strong>' + formatUserDisplay(item.sourceUserId, item.sourceNickname) + '</strong> → <strong>' + formatUserDisplay(item.targetUserId, item.targetNickname) + '</strong></div><div style="margin-top:6px;font-size:12px;color:var(--text-muted);">' + esc(item.relationType || '') + ' · 互动 ' + esc(String(item.interactions || 0)) + '</div></div>' +
       '<div style="font-size:18px;color:var(--accent);font-weight:700;">' + Number(item.score || 0).toFixed(1) + '</div>' +
     '</div>'
   );
@@ -2887,7 +4161,7 @@ async function loadSelfLearningPanel(showToast) {
     '</div>' +
     renderSelfLearningList(state.selfLearning.affection.slice(0, 10), item =>
       '<div style="display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.05);">' +
-        '<div><strong>' + esc(String(item.userId || '')) + '</strong><div style="margin-top:4px;font-size:12px;color:var(--text-muted);">最近波动 ' + Number(item.lastDelta || 0).toFixed(1) + '</div></div>' +
+        '<div><strong>' + formatUserDisplay(item.userId, item.nickname) + '</strong><div style="margin-top:4px;font-size:12px;color:var(--text-muted);">最近波动 ' + Number(item.lastDelta || 0).toFixed(1) + '</div></div>' +
         '<div style="font-size:20px;color:var(--pink);font-weight:700;">' + Number(item.score || 0).toFixed(1) + '</div>' +
       '</div>'
     );

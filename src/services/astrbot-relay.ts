@@ -42,6 +42,8 @@ interface RelaySession {
   active: boolean;
   startTime: number;
   lastMessageId: number | null;  // Astrbot最后一条消息ID，用于转发
+  lastDelegationReason?: string;
+  lastDelegationAt?: number;
 }
 
 /** 消息段解析后的中间结构 */
@@ -49,6 +51,81 @@ interface ParsedPart {
   type: 'text' | 'md' | 'media';
   content: string;
 }
+
+type DelegationRoute = 'explicit-command' | 'relay-mode' | 'complex-task';
+
+type PendingReplyTarget = {
+  groupId: number;
+  userId: number;
+  createdAt: number;
+  route: DelegationRoute;
+  preview: string;
+};
+
+export type AstrbotComplexTaskDecision = {
+  shouldDelegate: boolean;
+  reason:
+    | 'disabled'
+    | 'not-configured'
+    | 'group-local-only'
+    | 'group-force-delegate'
+    | 'group-denied'
+    | 'group-not-allowed'
+    | 'empty'
+    | 'too-short'
+    | 'complex-keyword'
+    | 'complex-structure'
+    | 'complex-length'
+    | 'not-complex';
+  matchedKeywords: string[];
+};
+
+export type AstrbotRuntimeEvent = {
+  timestamp: string;
+  route?: string;
+  groupId?: number;
+  status: 'delegated' | 'skipped' | 'fallback' | 'forwarded';
+  reason: string;
+  preview?: string;
+};
+
+export type AstrbotRelaySnapshot = {
+  configured: boolean;
+  activeGroups: number[];
+  pendingReplyCount: number;
+  explicitRequests: number;
+  relayModeRequests: number;
+  complexTaskRequests: number;
+  fallbackToLocalCount: number;
+  timeoutCount: number;
+  replyForwardCount: number;
+  lastDelegationReason?: string;
+  lastDelegationAt?: string;
+  lastMatchedKeywords: string[];
+  decisionCounts: Record<string, number>;
+  lastEvent?: AstrbotRuntimeEvent;
+  recentEvents: AstrbotRuntimeEvent[];
+};
+
+type DelegationAttemptResult = {
+  delegated: boolean;
+  fallbackToLocal: boolean;
+  ackReply?: string;
+  decision: AstrbotComplexTaskDecision;
+  errorMessage?: string;
+};
+
+type AstrbotRuntimeSettings = {
+  targetQQ: number;
+  enabledComplexTasks: boolean;
+  complexTaskKeywords: string[];
+  complexTaskGroupAllowlist: number[];
+  complexTaskGroupDenylist: number[];
+  complexTaskGroupRouteOverrides: Record<string, string>;
+  complexTaskMinLength: number;
+  timeoutMs: number;
+  fallbackToLocal: boolean;
+};
 
 /**
  * Astrbot 转发服务
@@ -69,17 +146,59 @@ export class AstrbotRelayService {
   private relaySessions: Map<number, RelaySession> = new Map();
   /** 群号 → 是否处于转发模式 */
   private activeGroups: Set<number> = new Set();
+  private pendingReplyQueue: PendingReplyTarget[] = [];
+  private runtimeSettings: AstrbotRuntimeSettings;
+  private metrics = {
+    explicitRequests: 0,
+    relayModeRequests: 0,
+    complexTaskRequests: 0,
+    fallbackToLocalCount: 0,
+    timeoutCount: 0,
+    replyForwardCount: 0,
+    lastDelegationReason: '',
+    lastDelegationAt: 0,
+    lastMatchedKeywords: [] as string[],
+    decisionCounts: {} as Record<string, number>,
+  };
+  private recentEvents: AstrbotRuntimeEvent[] = [];
 
   constructor(onebot: OneBotClient, sessionManager: SessionManager) {
     this.onebot = onebot;
     this.sessionManager = sessionManager;
-    this.targetQQ = config.astrbotQq;
+    this.runtimeSettings = this.buildRuntimeSettings();
+    this.targetQQ = this.runtimeSettings.targetQQ;
 
     if (this.targetQQ) {
       logger.info(`[Astrbot] 初始化完成, 目标QQ: ${this.targetQQ}`);
     } else {
       logger.warn('[Astrbot] ASTRBOT_QQ 未配置, /Astrbot 命令不可用');
     }
+  }
+
+  private buildRuntimeSettings(): AstrbotRuntimeSettings {
+    return {
+      targetQQ: config.astrbotQq,
+      enabledComplexTasks: config.astrbotEnabledComplexTasks,
+      complexTaskKeywords: [...config.astrbotComplexTaskKeywords],
+      complexTaskGroupAllowlist: [...config.astrbotComplexTaskGroupAllowlist],
+      complexTaskGroupDenylist: [...config.astrbotComplexTaskGroupDenylist],
+      complexTaskGroupRouteOverrides: { ...config.astrbotComplexTaskGroupRouteOverrides },
+      complexTaskMinLength: config.astrbotComplexTaskMinLength,
+      timeoutMs: config.astrbotTimeoutMs,
+      fallbackToLocal: config.astrbotFallbackToLocal,
+    };
+  }
+
+  applyRuntimeConfig(updates: Partial<AstrbotRuntimeSettings>): void {
+    this.runtimeSettings = {
+      ...this.runtimeSettings,
+      ...updates,
+      complexTaskKeywords: updates.complexTaskKeywords ? [...updates.complexTaskKeywords] : this.runtimeSettings.complexTaskKeywords,
+      complexTaskGroupAllowlist: updates.complexTaskGroupAllowlist ? [...updates.complexTaskGroupAllowlist] : this.runtimeSettings.complexTaskGroupAllowlist,
+      complexTaskGroupDenylist: updates.complexTaskGroupDenylist ? [...updates.complexTaskGroupDenylist] : this.runtimeSettings.complexTaskGroupDenylist,
+      complexTaskGroupRouteOverrides: updates.complexTaskGroupRouteOverrides ? { ...updates.complexTaskGroupRouteOverrides } : this.runtimeSettings.complexTaskGroupRouteOverrides,
+    };
+    this.targetQQ = this.runtimeSettings.targetQQ;
   }
 
   /**
@@ -113,7 +232,7 @@ export class AstrbotRelayService {
 
     // 如果命令后面有内容，直接转发给 Astrbot
     if (textAfterCommand) {
-      await this.relayToAstrbot(groupMsg, rawText, nickname);
+      await this.relayToAstrbot(groupMsg, rawText, nickname, 'explicit-command');
       return { handled: true, reply: '已转发给 Astrbot~ 等待回复中...' };
     }
 
@@ -142,6 +261,136 @@ export class AstrbotRelayService {
    */
   isGroupRelaying(groupId: number): boolean {
     return this.activeGroups.has(groupId);
+  }
+
+  getRuntimeSnapshot(): AstrbotRelaySnapshot {
+    this.prunePendingReplyQueue();
+    return {
+      configured: Boolean(this.targetQQ),
+      activeGroups: Array.from(this.activeGroups),
+      pendingReplyCount: this.pendingReplyQueue.length,
+      explicitRequests: this.metrics.explicitRequests,
+      relayModeRequests: this.metrics.relayModeRequests,
+      complexTaskRequests: this.metrics.complexTaskRequests,
+      fallbackToLocalCount: this.metrics.fallbackToLocalCount,
+      timeoutCount: this.metrics.timeoutCount,
+      replyForwardCount: this.metrics.replyForwardCount,
+      lastDelegationReason: this.metrics.lastDelegationReason || undefined,
+      lastDelegationAt: this.metrics.lastDelegationAt
+        ? new Date(this.metrics.lastDelegationAt).toISOString()
+        : undefined,
+      lastMatchedKeywords: [...this.metrics.lastMatchedKeywords],
+      decisionCounts: { ...this.metrics.decisionCounts },
+      lastEvent: this.recentEvents[0],
+      recentEvents: [...this.recentEvents],
+    };
+  }
+
+  analyzeComplexTask(text: string, groupId?: number): AstrbotComplexTaskDecision {
+    const normalized = text.trim();
+    if (!this.runtimeSettings.enabledComplexTasks) {
+      return { shouldDelegate: false, reason: 'disabled', matchedKeywords: [] };
+    }
+    if (!this.targetQQ) {
+      return { shouldDelegate: false, reason: 'not-configured', matchedKeywords: [] };
+    }
+    const routeOverride =
+      groupId && this.runtimeSettings.complexTaskGroupRouteOverrides[String(groupId)]
+        ? String(this.runtimeSettings.complexTaskGroupRouteOverrides[String(groupId)]).trim().toLowerCase()
+        : '';
+    if (routeOverride === 'local-only') {
+      return { shouldDelegate: false, reason: 'group-local-only', matchedKeywords: [] };
+    }
+    if (routeOverride === 'force-delegate') {
+      return { shouldDelegate: true, reason: 'group-force-delegate', matchedKeywords: [] };
+    }
+    if (
+      groupId &&
+      this.runtimeSettings.complexTaskGroupDenylist.length > 0 &&
+      this.runtimeSettings.complexTaskGroupDenylist.includes(groupId)
+    ) {
+      return { shouldDelegate: false, reason: 'group-denied', matchedKeywords: [] };
+    }
+    if (
+      this.runtimeSettings.complexTaskGroupAllowlist.length > 0 &&
+      groupId &&
+      !this.runtimeSettings.complexTaskGroupAllowlist.includes(groupId)
+    ) {
+      return { shouldDelegate: false, reason: 'group-not-allowed', matchedKeywords: [] };
+    }
+    if (!normalized) {
+      return { shouldDelegate: false, reason: 'empty', matchedKeywords: [] };
+    }
+
+    const matchedKeywords = this.runtimeSettings.complexTaskKeywords.filter((keyword) =>
+      normalized.toLowerCase().includes(keyword.toLowerCase())
+    );
+    if (matchedKeywords.length > 0) {
+      return { shouldDelegate: true, reason: 'complex-keyword', matchedKeywords };
+    }
+
+    if (/(先.+?(再|然后|接着|之后|最后))|(步骤|分阶段|路线图|roadmap|清单|排查路径)/u.test(normalized)) {
+      return { shouldDelegate: true, reason: 'complex-structure', matchedKeywords: [] };
+    }
+
+    if (normalized.length >= this.runtimeSettings.complexTaskMinLength) {
+      return { shouldDelegate: true, reason: 'complex-length', matchedKeywords: [] };
+    }
+
+    return {
+      shouldDelegate: false,
+      reason: normalized.length < this.runtimeSettings.complexTaskMinLength ? 'too-short' : 'not-complex',
+      matchedKeywords: [],
+    };
+  }
+
+  async maybeDelegateComplexTask(
+    groupMsg: GroupMessage,
+    rawText: string,
+    nickname: string
+  ): Promise<DelegationAttemptResult> {
+    const decision = this.analyzeComplexTask(rawText, groupMsg.group_id);
+    if (!decision.shouldDelegate) {
+      this.recordDecision(decision.reason, {
+        groupId: groupMsg.group_id,
+        status: 'skipped',
+        reason: decision.reason,
+        preview: rawText.slice(0, 80),
+      });
+      return { delegated: false, fallbackToLocal: false, decision };
+    }
+
+    try {
+      await this.relayToAstrbot(groupMsg, rawText, nickname, 'complex-task', decision.matchedKeywords);
+      return {
+        delegated: true,
+        fallbackToLocal: false,
+        ackReply: '这个任务稍微复杂一点，我先请 AstrBot 帮忙处理一下喵~',
+        decision,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (this.runtimeSettings.fallbackToLocal) {
+        this.metrics.fallbackToLocalCount += 1;
+        this.recordDecision(decision.reason, {
+          groupId: groupMsg.group_id,
+          status: 'fallback',
+          reason: decision.reason,
+          preview: rawText.slice(0, 80),
+        });
+        logger.warn(
+          { error, groupId: groupMsg.group_id, reason: decision.reason },
+          '[Astrbot] 复杂任务委托失败，回退本地处理'
+        );
+        return {
+          delegated: false,
+          fallbackToLocal: true,
+          decision,
+          errorMessage: message,
+        };
+      }
+      throw error;
+    }
   }
 
   /**
@@ -187,7 +436,7 @@ export class AstrbotRelayService {
       return;
     }
 
-    await this.relayToAstrbot(groupMsg, rawText, nickname);
+    await this.relayToAstrbot(groupMsg, rawText, nickname, 'relay-mode');
   }
 
   /**
@@ -196,7 +445,9 @@ export class AstrbotRelayService {
   private async relayToAstrbot(
     groupMsg: GroupMessage,
     rawText: string,
-    nickname: string
+    nickname: string,
+    route: DelegationRoute,
+    matchedKeywords: string[] = []
   ): Promise<void> {
     const groupId = groupMsg.group_id;
     const cleanText = rawText.replace(/\/Astrbot/i, '').trim();
@@ -206,10 +457,11 @@ export class AstrbotRelayService {
       const messageToSend = this.buildRelayMessage(groupId, cleanText, nickname);
 
       // 通过 OneBot API 发送私聊消息给 Astrbot
-      await this.onebot.sendPrivateMsg(this.targetQQ, messageToSend);
+      await this.sendPrivateMsgWithTimeout(messageToSend);
+      this.trackDelegation(groupMsg, cleanText, route, matchedKeywords);
 
       logger.info(
-        `[Astrbot->] 群${groupId} ${nickname}: ` +
+        `[Astrbot->] route=${route} 群${groupId} ${nickname}: ` +
         cleanText.substring(0, 50)
       );
     } catch (error) {
@@ -437,41 +689,144 @@ export class AstrbotRelayService {
     messageSegments?: MessageSegment[]
   ): Promise<boolean> {
     if (!this.targetQQ || senderId !== this.targetQQ) return false;
+    this.prunePendingReplyQueue();
 
-    for (const [groupId, session] of this.relaySessions.entries()) {
-      if (!session.active) continue;
-
-      try {
-        const forwardText = this.extractForwardText(rawMessage, messageSegments);
-
-        if (!forwardText || forwardText.trim().length < 1) {
-          logger.debug(`[Astrbot] 空消息跳过, raw=${rawMessage.substring(0, 50)}`);
-          return true;
-        }
-
-        await this.onebot.sendGroupMsg(groupId, `[Astrbot] ${forwardText}`);
-
-        logger.info(
-          `[Astrbot<-] -> 群${groupId}: ` +
-          forwardText.substring(0, 80)
-        );
-
-        return true;
-      } catch (error) {
-        logger.error({ error }, `[Astrbot] 回复转发到群${groupId}失败`);
-        return true;
-      }
+    const pending = this.pendingReplyQueue.shift();
+    const targetGroupId =
+      pending?.groupId ??
+      Array.from(this.relaySessions.values()).find((session) => session.active)?.groupId;
+    if (!targetGroupId) {
+      return false;
     }
 
-    return false;
+    try {
+      const forwardText = this.extractForwardText(rawMessage, messageSegments);
+
+      if (!forwardText || forwardText.trim().length < 1) {
+        logger.debug(`[Astrbot] 空消息跳过, raw=${rawMessage.substring(0, 50)}`);
+        return true;
+      }
+
+      await this.onebot.sendGroupMsg(targetGroupId, `[Astrbot] ${forwardText}`);
+      this.metrics.replyForwardCount += 1;
+      this.pushEvent({
+        groupId: targetGroupId,
+        route: pending?.route || 'relay-mode',
+        status: 'forwarded',
+        reason: 'reply-forwarded',
+        preview: forwardText.slice(0, 80),
+      });
+
+      logger.info(
+        `[Astrbot<-] route=${pending?.route || 'relay-mode'} -> 群${targetGroupId}: ` +
+        forwardText.substring(0, 80)
+      );
+
+      return true;
+    } catch (error) {
+      logger.error({ error }, `[Astrbot] 回复转发到群${targetGroupId}失败`);
+      return true;
+    }
   }
 
   closeRelay(groupId: number): void {
     this.activeGroups.delete(groupId);
     this.relaySessions.delete(groupId);
+    this.pendingReplyQueue = this.pendingReplyQueue.filter((item) => item.groupId !== groupId);
   }
 
   getActiveGroups(): number[] {
     return Array.from(this.activeGroups.keys());
+  }
+
+  private sendPrivateMsgWithTimeout(message: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.metrics.timeoutCount += 1;
+        reject(new Error(`AstrBot relay timeout after ${this.runtimeSettings.timeoutMs}ms`));
+      }, this.runtimeSettings.timeoutMs);
+      this.onebot.sendPrivateMsg(this.targetQQ, message)
+        .then(() => {
+          clearTimeout(timer);
+          resolve();
+        })
+        .catch((error) => {
+          clearTimeout(timer);
+          reject(error);
+        });
+    });
+  }
+
+  private trackDelegation(
+    groupMsg: GroupMessage,
+    cleanText: string,
+    route: DelegationRoute,
+    matchedKeywords: string[]
+  ): void {
+    const groupId = groupMsg.group_id;
+    const now = Date.now();
+    const existing = this.relaySessions.get(groupId);
+    this.relaySessions.set(groupId, {
+      groupId,
+      userId: groupMsg.user_id,
+      active: this.activeGroups.has(groupId),
+      startTime: existing?.startTime || now,
+      lastMessageId: existing?.lastMessageId || null,
+      lastDelegationReason: route,
+      lastDelegationAt: now,
+    });
+    this.pendingReplyQueue.push({
+      groupId,
+      userId: groupMsg.user_id,
+      createdAt: now,
+      route,
+      preview: cleanText.slice(0, 80),
+    });
+    this.prunePendingReplyQueue();
+
+    if (route === 'explicit-command') {
+      this.metrics.explicitRequests += 1;
+    } else if (route === 'relay-mode') {
+      this.metrics.relayModeRequests += 1;
+    } else {
+      this.metrics.complexTaskRequests += 1;
+    }
+    this.metrics.lastDelegationReason = route;
+    this.metrics.lastDelegationAt = now;
+    this.metrics.lastMatchedKeywords = [...matchedKeywords];
+    this.recordDecision(route, {
+      groupId,
+      route,
+      status: 'delegated',
+      reason: route,
+      preview: cleanText.slice(0, 80),
+    });
+  }
+
+  private prunePendingReplyQueue(): void {
+    const expireBefore = Date.now() - Math.max(this.runtimeSettings.timeoutMs * 3, 120000);
+    this.pendingReplyQueue = this.pendingReplyQueue.filter((item) => item.createdAt >= expireBefore);
+  }
+
+  private recordDecision(
+    key: string,
+    event: Omit<AstrbotRuntimeEvent, 'timestamp'>
+  ): void {
+    this.metrics.decisionCounts[key] = (this.metrics.decisionCounts[key] || 0) + 1;
+    this.pushEvent(event);
+  }
+
+  private pushEvent(event: Omit<AstrbotRuntimeEvent, 'timestamp'>): void {
+    this.recentEvents.unshift({
+      timestamp: new Date().toISOString(),
+      route: event.route,
+      groupId: event.groupId,
+      status: event.status,
+      reason: event.reason,
+      preview: event.preview,
+    });
+    if (this.recentEvents.length > 12) {
+      this.recentEvents.splice(12);
+    }
   }
 }

@@ -1,0 +1,22 @@
+{
+  "character": "永雏塔菲",
+  "backend": "gpt-sovits",
+  "versionId": "stable-gpt",
+  "datasetTag": "public-data-v1",
+  "targetSampleRate": 32000,
+  "segmentDurationSec": {
+    "min": 3,
+    "max": 12
+  },
+  "priorityRules": [
+    "维持当前稳定的直播闲聊质感",
+    "补充无重 BGM 的中短句",
+    "区分日常闲聊与角色配音素材"
+  ],
+  "evalChecklist": [
+    "中短句自然度",
+    "角色口癖保留",
+    "底噪和卡顿",
+    "跨句连续性"
+  ]
+}

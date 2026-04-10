@@ -1,0 +1,14 @@
+{
+  "yongchutafi-gpt": {
+    "total": 13,
+    "ok": 13,
+    "failed": 0,
+    "averageDurationMs": 11447
+  },
+  "yongchutafi-rvc-v1": {
+    "total": 13,
+    "ok": 9,
+    "failed": 4,
+    "averageDurationMs": 9712
+  }
+}

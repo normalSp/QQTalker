@@ -11,6 +11,7 @@ import { WelcomeService } from './services/welcome-service';
 import { setupConsoleAndAnalyzer, setupGlobalShortcuts } from './start-with-console';
 import { PluginManager } from './plugins/plugin-manager';
 import { SelfLearningPlugin } from './plugins/self-learning/self-learning-plugin';
+import { VoiceBroadcastPlugin } from './plugins/voice-broadcast/voice-broadcast-plugin';
 
 
 
@@ -37,6 +38,7 @@ async function main(): Promise<void> {
   const blockService = new BlockService();
   const dashboard = new DashboardService();
   const pluginManager = new PluginManager();
+  let scheduler: SchedulerService | undefined;
   dashboard.setOneBotClient(onebotClient);
   dashboard.setBlockService(blockService);
 
@@ -49,12 +51,19 @@ async function main(): Promise<void> {
 
   // 将 dashboard 注入 handler 用于统计埋点
   handler.setDashboard(dashboard);
+  dashboard.setAstrbotStatusProvider(() => handler.getAstrbotStatus());
+  dashboard.setConfigUpdateHandler((updates) => {
+    if (Object.keys(updates).some((key) => key.startsWith('ASTRBOT_'))) {
+      handler.refreshAstrbotRuntimeConfig();
+    }
+  });
   handler.setBlockService(blockService);
   handler.setPluginManager(pluginManager);
 
   if (config.selfLearning.enabled) {
     pluginManager.register(new SelfLearningPlugin());
   }
+  pluginManager.register(new VoiceBroadcastPlugin());
   await pluginManager.loadExternalPlugins();
   await pluginManager.initialize({
     onebot: onebotClient,
@@ -64,6 +73,9 @@ async function main(): Promise<void> {
     dataDir: process.cwd(),
   });
   dashboard.registerRoutes(pluginManager.getDashboardRoutes());
+  dashboard.setShutdownHandler(() =>
+    shutdown(onebotClient, sessionManager, dashboard, blockService, pluginManager, scheduler)
+  );
 
   // 注册消息监听
   onebotClient.onMessage(msg => {
@@ -101,7 +113,7 @@ async function main(): Promise<void> {
     logger.info('✅ QQTalker 启动成功！正在监听消息...');
 
     // 始终启动调度器 (AI插聊不依赖 SCHEDULE_GROUPS)
-    const scheduler = new SchedulerService(onebotClient, codebuddyClient, sessionManager);
+    scheduler = new SchedulerService(onebotClient, codebuddyClient, sessionManager);
     
     // 把 scheduler 传给 handler，让 handler 收集活跃群号
     handler.setScheduler(scheduler);
@@ -119,8 +131,8 @@ async function main(): Promise<void> {
   }
 
   // 优雅关闭
-  process.on('SIGINT', () => void shutdown(onebotClient, sessionManager, dashboard, blockService, pluginManager));
-  process.on('SIGTERM', () => void shutdown(onebotClient, sessionManager, dashboard, blockService, pluginManager));
+  process.on('SIGINT', () => void shutdown(onebotClient, sessionManager, dashboard, blockService, pluginManager, scheduler));
+  process.on('SIGTERM', () => void shutdown(onebotClient, sessionManager, dashboard, blockService, pluginManager, scheduler));
 }
 
 async function shutdown(
@@ -129,8 +141,10 @@ async function shutdown(
   dashboard?: DashboardService,
   blockService?: BlockService,
   pluginManager?: PluginManager,
+  scheduler?: SchedulerService,
 ): Promise<void> {
   logger.info('🛑 正在关闭...');
+  scheduler?.destroy();
   dashboard?.stop();
   blockService?.destroy();
   await pluginManager?.dispose();

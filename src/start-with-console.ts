@@ -116,7 +116,7 @@ export function setupGlobalShortcuts() {
       case 'quit':
       case 'exit':
         console.log('👋 正在退出...');
-        process.exit(0);
+        process.kill(process.pid, 'SIGTERM');
         break;
       default:
         if (command) {

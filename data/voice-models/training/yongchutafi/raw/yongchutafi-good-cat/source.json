@@ -1,0 +1,16 @@
+{
+  "id": "yongchutafi-good-cat",
+  "title": "【永雏塔菲】好似喵~ 好似喵！！",
+  "url": "https://www.bilibili.com/video/BV13S4y1Y7Zr/",
+  "platform": "bilibili",
+  "contentType": "clip",
+  "priority": "medium",
+  "status": "todo",
+  "speakerState": "excited-chat",
+  "hasBgm": false,
+  "usableForRef": false,
+  "usableForAux": true,
+  "usableForTrain": true,
+  "copyrightNote": "公开视频；建议只截取低噪无观众干扰的纯人声区段。",
+  "notes": "适合做角色口癖和高辨识度短句样本，但不宜作为主参考音。"
+}

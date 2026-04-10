@@ -1,0 +1,16 @@
+{
+  "id": "dongxuelian-cry-for-me",
+  "title": "《Cry For Me（feat. Ami）》东雪莲 纯享版",
+  "url": "https://www.bilibili.com/video/av113622504183606/",
+  "platform": "bilibili",
+  "contentType": "song-video",
+  "priority": "low",
+  "status": "todo",
+  "speakerState": "singing",
+  "hasBgm": true,
+  "usableForRef": false,
+  "usableForAux": false,
+  "usableForTrain": false,
+  "copyrightNote": "公开视频；仅作风格参考。",
+  "notes": "保留作角色声线参考，不直接进入清晰语音数据集。"
+}

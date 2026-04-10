@@ -6,7 +6,7 @@ import { OneBotClient } from '../services/onebot-client';
 import { CodeBuddyClient } from '../services/codebuddy-client';
 import { SessionManager, type ChatMessage, type SessionMode } from '../services/session-manager';
 import { DivinationService } from '../services/divination-service';
-import { TTSService } from '../services/tts-service';
+import { optimizeSpokenReplyText, TTSService } from '../services/tts-service';
 import { STTService } from '../services/stt-service';
 import { SchedulerService } from '../services/scheduler-service';
 import { AstrbotRelayService } from '../services/astrbot-relay';
@@ -15,6 +15,7 @@ import { VisionService } from '../services/vision-service';
 import { BlockService } from '../services/block-service';
 import { hasImage, extractImageCq } from '../types/onebot';
 import type { PluginManager } from '../plugins/plugin-manager';
+import dotenv from 'dotenv';
 
 
 
@@ -101,6 +102,44 @@ export class MessageHandler {
 
   setPluginManager(pluginManager: PluginManager): void {
     this.pluginManager = pluginManager;
+  }
+
+  getAstrbotStatus(): unknown {
+    return this.astrbotRelay?.getRuntimeSnapshot() || null;
+  }
+
+  refreshAstrbotRuntimeConfig(): void {
+    dotenv.config({ override: true });
+    this.astrbotRelay?.applyRuntimeConfig({
+      targetQQ: parseInt(process.env.ASTRBOT_QQ || '0', 10),
+      enabledComplexTasks: process.env.ASTRBOT_ENABLED_COMPLEX_TASKS === 'true',
+      complexTaskKeywords: String(process.env.ASTRBOT_COMPLEX_TASK_KEYWORDS || '分析,总结,规划,排查,设计,方案,roadmap')
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean),
+      complexTaskGroupAllowlist: String(process.env.ASTRBOT_COMPLEX_TASK_GROUP_ALLOWLIST || '')
+        .split(',')
+        .map((item) => Number(item.trim()))
+        .filter((item) => Number.isFinite(item) && item > 0),
+      complexTaskGroupDenylist: String(process.env.ASTRBOT_COMPLEX_TASK_GROUP_DENYLIST || '')
+        .split(',')
+        .map((item) => Number(item.trim()))
+        .filter((item) => Number.isFinite(item) && item > 0),
+      complexTaskGroupRouteOverrides: String(process.env.ASTRBOT_COMPLEX_TASK_GROUP_ROUTE_OVERRIDES || '')
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .reduce<Record<string, string>>((acc, item) => {
+          const index = item.indexOf(':');
+          if (index > 0) {
+            acc[item.slice(0, index).trim()] = item.slice(index + 1).trim();
+          }
+          return acc;
+        }, {}),
+      complexTaskMinLength: parseInt(process.env.ASTRBOT_COMPLEX_TASK_MIN_LENGTH || '48', 10),
+      timeoutMs: parseInt(process.env.ASTRBOT_TIMEOUT_MS || '45000', 10),
+      fallbackToLocal: process.env.ASTRBOT_FALLBACK_TO_LOCAL !== 'false',
+    });
   }
 
   /**
@@ -381,6 +420,27 @@ export class MessageHandler {
       return;
     }
 
+    if (this.astrbotRelay) {
+      const delegation = await this.astrbotRelay.maybeDelegateComplexTask(groupMsg, rawText, nickname);
+      if (delegation.delegated) {
+        if (delegation.ackReply) {
+          await this.sendReply(groupMsg, formatAtText(groupMsg.user_id, delegation.ackReply));
+        }
+        return;
+      }
+      if (delegation.fallbackToLocal) {
+        logger.warn(
+          {
+            groupId: groupMsg.group_id,
+            userId: groupMsg.user_id,
+            reason: delegation.decision.reason,
+            error: delegation.errorMessage,
+          },
+          'AstrBot复杂任务委托失败，继续由QQTalker本地处理'
+        );
+      }
+    }
+
     // 获取历史 + AI回复
     logger.debug('[@流程] 1/4 获取历史消息...');
     const history = this.sessionManager.getHistory(
@@ -427,7 +487,18 @@ export class MessageHandler {
       // 后台合成语音，不阻塞主流程
       logger.debug('[@流程] 4/4 后台TTS合成...');
       this.dashboard?.recordTtsCall();
-      this.tts.textToSpeech(reply).then(async (audioBuffer) => {
+      const spokenCharacter =
+        config.ttsGroupVoiceRoleMap[String(groupMsg.group_id)] ||
+        config.ttsDefaultCharacter;
+      const spokenReply = optimizeSpokenReplyText(reply, {
+        scene: 'at-reply',
+        character: spokenCharacter,
+      });
+      this.tts.textToSpeech(spokenReply || reply, {
+        scene: 'at-reply',
+        allowExperimental: false,
+        groupId: groupMsg.group_id,
+      }).then(async (audioBuffer) => {
         if (!audioBuffer || audioBuffer.length <= 1024) return;
         
         const base64Audio = audioBuffer.toString('base64');

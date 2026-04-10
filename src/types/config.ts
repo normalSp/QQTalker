@@ -2,6 +2,38 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+function parseCsvEnv(value: string | undefined): string[] {
+  if (!value) return [];
+  return value
+    .split(',')
+    .map(item => item.trim())
+    .filter(Boolean);
+}
+
+function parseMapEnv(value: string | undefined, pairSeparator = ',', kvSeparator = ':'): Record<string, string> {
+  if (!value) return {};
+  return value
+    .split(pairSeparator)
+    .map(item => item.trim())
+    .filter(Boolean)
+    .reduce<Record<string, string>>((acc, item) => {
+      const index = item.indexOf(kvSeparator);
+      if (index <= 0) return acc;
+      const key = item.slice(0, index).trim();
+      const mappedValue = item.slice(index + kvSeparator.length).trim();
+      if (key && mappedValue) {
+        acc[key] = mappedValue;
+      }
+      return acc;
+    }, {});
+}
+
+function parseNumberCsvEnv(value: string | undefined): number[] {
+  return parseCsvEnv(value)
+    .map((item) => Number(item))
+    .filter((item) => Number.isFinite(item) && item > 0);
+}
+
 export const config = {
   // OneBot WebSocket
   wsUrl: process.env.WS_URL || 'ws://127.0.0.1:8080',
@@ -22,8 +54,28 @@ export const config = {
   
   // TTS语音配置
   ttsEnabled: process.env.TTS_ENABLED === 'true',
+  ttsProvider: process.env.TTS_PROVIDER || 'local-http',
+  ttsServiceUrl: process.env.TTS_SERVICE_URL || 'http://127.0.0.1:8765',
+  ttsBackend: process.env.TTS_BACKEND || 'gpt-sovits',
+  ttsModel: process.env.TTS_MODEL || '',
+  ttsModelDir: process.env.TTS_MODEL_DIR || './data/voice-models',
   ttsVoice: process.env.TTS_VOICE || 'zh-CN-XiaoyiNeural',
-  ttsSpeed: parseInt(process.env.TTS_SPEED || '4', 10),
+  ttsSpeed: parseFloat(process.env.TTS_SPEED || '1.0'),
+  ttsStyle: process.env.TTS_STYLE || 'natural',
+  ttsSanitizeWhitelist: process.env.TTS_SANITIZE_WHITELIST || '',
+  ttsSanitizeBlacklist: process.env.TTS_SANITIZE_BLACKLIST || '',
+  ttsPreviewText: process.env.TTS_PREVIEW_TEXT || '你好呀，欢迎使用 QQTalker 的语音播报插件。',
+  ttsTimeoutMs: parseInt(process.env.TTS_TIMEOUT_MS || '45000', 10),
+  ttsFallbackToBaidu: process.env.TTS_FALLBACK_TO_BAIDU !== 'false',
+  ttsRuntimePolicy: process.env.TTS_RUNTIME_POLICY || 'model-default',
+  ttsFallbackChain: parseCsvEnv(process.env.TTS_FALLBACK_CHAIN || 'edge-tts,legacy-baidu'),
+  ttsLongTextPreferredBackend: process.env.TTS_LONG_TEXT_PREFERRED_BACKEND || 'gpt-sovits',
+  ttsLongTextThreshold: parseInt(process.env.TTS_LONG_TEXT_THRESHOLD || '72', 10),
+  ttsRvcShortTextMaxLength: parseInt(process.env.TTS_RVC_SHORT_TEXT_MAX_LENGTH || '28', 10),
+  ttsExperimentalRvcEnabled: process.env.TTS_EXPERIMENTAL_RVC_ENABLED === 'true',
+  ttsDefaultCharacter: process.env.TTS_DEFAULT_CHARACTER || '',
+  ttsCharacterModelMap: parseMapEnv(process.env.TTS_CHARACTER_MODEL_MAP),
+  ttsGroupVoiceRoleMap: parseMapEnv(process.env.TTS_GROUP_VOICE_ROLE_MAP),
 
   // STT语音识别配置（语音消息转文字）
   // 默认使用 SiliconFlow 的 SenseVoice（免费，中文效果好）
@@ -43,6 +95,16 @@ export const config = {
 
   // Astrbot 转发配置 - 目标 Astrbot 机器人QQ号
   astrbotQq: parseInt(process.env.ASTRBOT_QQ || '0', 10),
+  astrbotEnabledComplexTasks: process.env.ASTRBOT_ENABLED_COMPLEX_TASKS === 'true',
+  astrbotComplexTaskKeywords: parseCsvEnv(
+    process.env.ASTRBOT_COMPLEX_TASK_KEYWORDS || '分析,总结,规划,排查,设计,方案,roadmap'
+  ),
+  astrbotComplexTaskGroupAllowlist: parseNumberCsvEnv(process.env.ASTRBOT_COMPLEX_TASK_GROUP_ALLOWLIST),
+  astrbotComplexTaskGroupDenylist: parseNumberCsvEnv(process.env.ASTRBOT_COMPLEX_TASK_GROUP_DENYLIST),
+  astrbotComplexTaskGroupRouteOverrides: parseMapEnv(process.env.ASTRBOT_COMPLEX_TASK_GROUP_ROUTE_OVERRIDES),
+  astrbotComplexTaskMinLength: parseInt(process.env.ASTRBOT_COMPLEX_TASK_MIN_LENGTH || '48', 10),
+  astrbotTimeoutMs: parseInt(process.env.ASTRBOT_TIMEOUT_MS || '45000', 10),
+  astrbotFallbackToLocal: process.env.ASTRBOT_FALLBACK_TO_LOCAL !== 'false',
 
   // 日志
   logLevel: (process.env.LOG_LEVEL || 'info') as 'debug' | 'info' | 'warn' | 'error',

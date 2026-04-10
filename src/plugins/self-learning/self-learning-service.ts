@@ -306,7 +306,8 @@ export class SelfLearningService {
   }
 
   async listStyles(groupId: number, userId?: number): Promise<StylePatternRecord[]> {
-    return this.store.listStylePatterns(groupId, userId, 30);
+    const items = await this.store.listStylePatterns(groupId, userId, 30);
+    return this.attachNicknamesToStyles(groupId, items);
   }
 
   async listSlang(groupId: number): Promise<SlangRecord[]> {
@@ -314,11 +315,13 @@ export class SelfLearningService {
   }
 
   async listSocial(groupId: number, userId?: number): Promise<SocialEdgeRecord[]> {
-    return this.store.listSocialEdges(groupId, userId, 60);
+    const items = await this.store.listSocialEdges(groupId, userId, 60);
+    return this.attachNicknamesToSocial(groupId, items);
   }
 
   async listAffection(groupId: number): Promise<AffectionRecord[]> {
-    return this.store.listAffection(groupId, 30);
+    const items = await this.store.listAffection(groupId, 30);
+    return this.attachNicknamesToAffection(groupId, items);
   }
 
   async getMood(groupId: number): Promise<MoodRecord | undefined> {
@@ -641,5 +644,48 @@ export class SelfLearningService {
         });
       }
     }
+  }
+
+  private async getNicknameMap(groupId: number, userIds: number[]): Promise<Map<number, string>> {
+    const uniqueIds = Array.from(new Set(userIds.filter((item) => Number.isFinite(item) && item > 0)));
+    if (uniqueIds.length === 0) return new Map();
+
+    const messages = await this.store.listCapturedMessages(groupId);
+    const nicknameMap = new Map<number, string>();
+
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const item = messages[i];
+      if (!uniqueIds.includes(item.userId)) continue;
+      if (!item.nickname || nicknameMap.has(item.userId)) continue;
+      nicknameMap.set(item.userId, item.nickname);
+      if (nicknameMap.size >= uniqueIds.length) break;
+    }
+
+    return nicknameMap;
+  }
+
+  private async attachNicknamesToStyles(groupId: number, items: StylePatternRecord[]): Promise<StylePatternRecord[]> {
+    const nicknameMap = await this.getNicknameMap(groupId, items.map((item) => item.userId));
+    return items.map((item) => ({
+      ...item,
+      nickname: nicknameMap.get(item.userId) || item.nickname,
+    }));
+  }
+
+  private async attachNicknamesToSocial(groupId: number, items: SocialEdgeRecord[]): Promise<SocialEdgeRecord[]> {
+    const nicknameMap = await this.getNicknameMap(groupId, items.flatMap((item) => [item.sourceUserId, item.targetUserId]));
+    return items.map((item) => ({
+      ...item,
+      sourceNickname: nicknameMap.get(item.sourceUserId) || item.sourceNickname,
+      targetNickname: nicknameMap.get(item.targetUserId) || item.targetNickname,
+    }));
+  }
+
+  private async attachNicknamesToAffection(groupId: number, items: AffectionRecord[]): Promise<AffectionRecord[]> {
+    const nicknameMap = await this.getNicknameMap(groupId, items.map((item) => item.userId));
+    return items.map((item) => ({
+      ...item,
+      nickname: nicknameMap.get(item.userId) || item.nickname,
+    }));
   }
 }

@@ -1,0 +1,40 @@
+{
+  "character": "dongxuelian",
+  "generatedAt": "2026-04-09T14:45:35.249Z",
+  "model": "FunAudioLLM/SenseVoiceSmall",
+  "segments": [
+    {
+      "id": "dongxuelian-m3-talk-auto-03",
+      "inputFile": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\dongxuelian\\raw\\dongxuelian-m3-talk\\m3_20-BV1UC411L72U.mp4",
+      "outputPath": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\dongxuelian\\segments\\dongxuelian-m3-talk-auto-03.wav",
+      "transcript": "我不会去线下了。因为骡子拿着别人偷拍我的视频去卖钱",
+      "notes": "auto-picked from speech span 00:00:00.000 - 00:00:09.683",
+      "transcriptRaw": "🎼我不会去线下了。因为骡子拿着别人偷拍我的视频去卖钱。",
+      "transcriptClean": "我不会去线下了。因为骡子拿着别人偷拍我的视频去卖钱",
+      "transcriptionStatus": "draft",
+      "transcribedAt": "2026-04-09T14:45:34.463Z"
+    },
+    {
+      "id": "dongxuelian-m3-talk-auto-01",
+      "inputFile": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\dongxuelian\\raw\\dongxuelian-m3-talk\\m3_20-BV1UC411L72U.mp4",
+      "outputPath": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\dongxuelian\\segments\\dongxuelian-m3-talk-auto-01.wav",
+      "transcript": "而且那个会场里面也是说明了，就是没有取",
+      "notes": "auto-picked from speech span 00:00:10.049 - 00:00:43.431",
+      "transcriptRaw": "🎼而且那个会场里面也是说明了，就是没有取。",
+      "transcriptClean": "而且那个会场里面也是说明了，就是没有取",
+      "transcriptionStatus": "draft",
+      "transcribedAt": "2026-04-09T14:45:34.944Z"
+    },
+    {
+      "id": "dongxuelian-m3-talk-auto-02",
+      "inputFile": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\dongxuelian\\raw\\dongxuelian-m3-talk\\m3_20-BV1UC411L72U.mp4",
+      "outputPath": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\dongxuelian\\segments\\dongxuelian-m3-talk-auto-02.wav",
+      "transcript": "我当时没有发现啊，他当时要是被发现，我早就被打死了。我们摊子三个男的。我把它轮",
+      "notes": "auto-picked from speech span 00:00:52.530 - 00:01:02.740",
+      "transcriptRaw": "我当时没有发现啊，他当时要是被发现，我早就被打死了。😡🎼我们摊子三个男的。我把它轮。",
+      "transcriptClean": "我当时没有发现啊，他当时要是被发现，我早就被打死了。我们摊子三个男的。我把它轮",
+      "transcriptionStatus": "draft",
+      "transcribedAt": "2026-04-09T14:45:35.249Z"
+    }
+  ]
+}

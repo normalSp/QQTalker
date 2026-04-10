@@ -1,0 +1,64 @@
+{
+  "models": [
+    {
+      "id": "preset-dongxuelian",
+      "name": "冬雪莲",
+      "character": "冬雪莲",
+      "backend": "gpt-sovits",
+      "recommendedBackend": "gpt-sovits",
+      "alternateBackends": ["rvc-compat", "edge-tts"],
+      "qualityTier": "stable",
+      "trainingStatus": "needs-more-clean-data",
+      "previewHint": "建议使用完整句试听，先观察清晰度再看贴脸度。",
+      "tags": ["虚拟偶像", "中文", "社区模型"],
+      "sampleText": "今天也要元气满满地和大家打招呼哦。",
+      "promptText": "今天也要元气满满地和大家打招呼哦。",
+      "promptLang": "zh",
+      "notes": "请将实际参考音频放入 data/voice-models/dongxuelian/ 后再改写路径。若你有专属微调权重，可额外扩展适配。",
+      "refAudioPath": "./dongxuelian/reference.wav",
+      "backendOverrides": {
+        "gpt-sovits": {
+          "preferredAuxCount": 1,
+          "recommendedTextMinLength": 8
+        }
+      }
+    },
+    {
+      "id": "preset-yongchutafi",
+      "name": "永雏塔菲",
+      "character": "永雏塔菲",
+      "backend": "gpt-sovits",
+      "recommendedBackend": "gpt-sovits",
+      "alternateBackends": ["rvc-compat", "edge-tts"],
+      "qualityTier": "stable",
+      "trainingStatus": "reference-ready",
+      "tags": ["虚拟偶像", "中文", "直播感"],
+      "sampleText": "塔菲今天也会认真营业，陪你把这段话念得更像真人。",
+      "promptText": "塔菲今天也会认真营业，陪你把这段话念得更像真人。",
+      "promptLang": "zh",
+      "notes": "请将实际参考音频放入 data/voice-models/yongchutafi/ 后再改写路径。若你有专属微调权重，可额外扩展适配。",
+      "refAudioPath": "./yongchutafi/reference.wav"
+    },
+    {
+      "id": "preset-dongxuelian-rvc",
+      "name": "冬雪莲 RVC 实验版",
+      "character": "冬雪莲",
+      "backend": "rvc-compat",
+      "recommendedBackend": "rvc-compat",
+      "qualityTier": "experimental",
+      "trainingStatus": "dataset-planned",
+      "tags": ["虚拟偶像", "中文", "RVC", "实验中"],
+      "sampleText": "这条链路用于测试更贴近角色声线的实验方案。",
+      "modelPath": "./dongxuelian/rvc/model.pth"
+    },
+    {
+      "id": "edge-tts-xiaoyi",
+      "name": "zh-CN-XiaoyiNeural",
+      "character": "微软晓伊",
+      "backend": "edge-tts",
+      "tags": ["系统音色", "中文", "回退音色"],
+      "sampleText": "如果角色模型暂时没准备好，可以先用我进行更自然的中文播报。",
+      "installed": true
+    }
+  ]
+}

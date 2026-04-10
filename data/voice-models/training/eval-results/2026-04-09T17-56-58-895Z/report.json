@@ -1,0 +1,114 @@
+{
+  "generatedAt": "2026-04-09T17:56:58.897Z",
+  "baseUrl": "http://127.0.0.1:8765",
+  "targets": [
+    {
+      "label": "yongchutafi-gpt",
+      "modelId": "preset-yongchutafi",
+      "backend": "gpt-sovits"
+    },
+    {
+      "label": "yongchutafi-rvc",
+      "modelId": "preset-yongchutafi-rvc",
+      "backend": "rvc-compat"
+    }
+  ],
+  "results": [
+    {
+      "caseId": "short-chat",
+      "text": "今天状态不错，我们继续把这件事做好。",
+      "tags": [
+        "short",
+        "chat",
+        "clarity"
+      ],
+      "target": {
+        "label": "yongchutafi-gpt",
+        "modelId": "preset-yongchutafi",
+        "backend": "gpt-sovits"
+      },
+      "output": "short-chat__yongchutafi-gpt.mp3",
+      "warnings": [],
+      "durationMs": 3694
+    },
+    {
+      "caseId": "short-chat",
+      "text": "今天状态不错，我们继续把这件事做好。",
+      "tags": [
+        "short",
+        "chat",
+        "clarity"
+      ],
+      "target": {
+        "label": "yongchutafi-rvc",
+        "modelId": "preset-yongchutafi-rvc",
+        "backend": "rvc-compat"
+      },
+      "error": "上游语音服务不可用: HTTP Error 502: Bad Gateway | body={\"detail\":\"ffmpeg decode failed: ffmpeg version 8.1-full_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers\\n  built with gcc 15.2.0 (Rev11, Built by MSYS2 project)\\n  configuration: --enable-gpl --enable-version3 --enable-static --disable-w32threads --disable-autodetect --enable-cairo --enable-fontconfig --enable-iconv --enable-gnutls --enable-lcms2 --enable-libxml2 --enable-gmp --enable-bzlib --enable-lzma --enable-libsnappy --enable-zlib --enable-librist --enable-libsrt --enable"
+    },
+    {
+      "caseId": "character-line",
+      "text": "先把句子念清楚，再让声线更贴近角色本人。",
+      "tags": [
+        "character",
+        "ab",
+        "timbre"
+      ],
+      "target": {
+        "label": "yongchutafi-gpt",
+        "modelId": "preset-yongchutafi",
+        "backend": "gpt-sovits"
+      },
+      "output": "character-line__yongchutafi-gpt.mp3",
+      "warnings": [],
+      "durationMs": 4984
+    },
+    {
+      "caseId": "character-line",
+      "text": "先把句子念清楚，再让声线更贴近角色本人。",
+      "tags": [
+        "character",
+        "ab",
+        "timbre"
+      ],
+      "target": {
+        "label": "yongchutafi-rvc",
+        "modelId": "preset-yongchutafi-rvc",
+        "backend": "rvc-compat"
+      },
+      "error": "上游语音服务不可用: HTTP Error 502: Bad Gateway | body={\"detail\":\"ffmpeg decode failed: ffmpeg version 8.1-full_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers\\n  built with gcc 15.2.0 (Rev11, Built by MSYS2 project)\\n  configuration: --enable-gpl --enable-version3 --enable-static --disable-w32threads --disable-autodetect --enable-cairo --enable-fontconfig --enable-iconv --enable-gnutls --enable-lcms2 --enable-libxml2 --enable-gmp --enable-bzlib --enable-lzma --enable-libsnappy --enable-zlib --enable-librist --enable-libsrt --enable"
+    },
+    {
+      "caseId": "long-sentence",
+      "text": "如果这次训练真的有效，我希望它既能保留角色辨识度，也不会再出现长句只听清几个字的问题。",
+      "tags": [
+        "long",
+        "continuity",
+        "intelligibility"
+      ],
+      "target": {
+        "label": "yongchutafi-gpt",
+        "modelId": "preset-yongchutafi",
+        "backend": "gpt-sovits"
+      },
+      "output": "long-sentence__yongchutafi-gpt.mp3",
+      "warnings": [],
+      "durationMs": 4761
+    },
+    {
+      "caseId": "long-sentence",
+      "text": "如果这次训练真的有效，我希望它既能保留角色辨识度，也不会再出现长句只听清几个字的问题。",
+      "tags": [
+        "long",
+        "continuity",
+        "intelligibility"
+      ],
+      "target": {
+        "label": "yongchutafi-rvc",
+        "modelId": "preset-yongchutafi-rvc",
+        "backend": "rvc-compat"
+      },
+      "error": "上游语音服务不可用: HTTP Error 502: Bad Gateway | body={\"detail\":\"ffmpeg decode failed: ffmpeg version 8.1-full_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers\\n  built with gcc 15.2.0 (Rev11, Built by MSYS2 project)\\n  configuration: --enable-gpl --enable-version3 --enable-static --disable-w32threads --disable-autodetect --enable-cairo --enable-fontconfig --enable-iconv --enable-gnutls --enable-lcms2 --enable-libxml2 --enable-gmp --enable-bzlib --enable-lzma --enable-libsnappy --enable-zlib --enable-librist --enable-libsrt --enable"
+    }
+  ]
+}

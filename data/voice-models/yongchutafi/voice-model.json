@@ -1,0 +1,30 @@
+{
+  "id": "preset-yongchutafi",
+  "name": "永雏塔菲",
+  "character": "永雏塔菲",
+  "backend": "gpt-sovits",
+  "recommendedBackend": "gpt-sovits",
+  "alternateBackends": ["rvc-compat", "edge-tts"],
+  "qualityTier": "stable",
+  "trainingStatus": "reference-ready",
+  "previewHint": "当前更适合日常聊天与中短句播报，可作为冬雪莲调参对照组。",
+  "tags": ["虚拟偶像", "中文", "reference-ready", "对照组"],
+  "sampleText": "塔菲今天也会认真营业，陪你把这段话念得更像真人。",
+  "promptText": "我会和你们一起练习的，能不能把我先放出来喵？",
+  "promptLang": "zh",
+  "notes": "当前默认稳定角色，主参考音与辅助参考音已切换为训练集中较干净的中文短句，用于稳定 GPT-SoVITS 试听。",
+  "refAudioPath": "./reference.wav",
+  "auxPaths": ["./aux-1.wav", "./aux-2.wav", "./aux-3.wav"],
+  "backendOverrides": {
+    "gpt-sovits": {
+      "preferredAuxCount": 1,
+      "recommendedTextMinLength": 6,
+      "topP": 0.84,
+      "temperature": 0.62,
+      "repetitionPenalty": 1.08,
+      "fragmentInterval": 0.1,
+      "notes": "塔菲 GPT 当前优先保清晰度与自然度，使用 1 条辅助参考音并收敛采样波动。"
+    }
+  },
+  "enabled": true
+}

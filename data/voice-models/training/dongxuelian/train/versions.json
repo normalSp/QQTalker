@@ -1,0 +1,19 @@
+{
+  "character": "冬雪莲",
+  "versions": [
+    {
+      "id": "stable-gpt",
+      "stage": "baseline",
+      "backend": "gpt-sovits",
+      "datasetTag": "reference-only",
+      "notes": "当前线上稳定链路，优先修复可懂度。"
+    },
+    {
+      "id": "exp-rvc",
+      "stage": "planned",
+      "backend": "rvc-compat",
+      "datasetTag": "public-data-v1",
+      "notes": "待补充公开闲聊原声后训练，用于 A/B 对比清晰度与贴脸度。"
+    }
+  ]
+}

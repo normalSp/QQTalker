@@ -7,7 +7,7 @@
 - **💬 群聊模式（默认）**: 全群共享对话上下文，Claw 记住每个人说了什么，可 @指定人回复
 - **👤 私聊模式**: 可切换为每人独立对话
 - **🔄 AI智能回复**: 接入 DeepSeek/OpenAI 等 OpenAI 兼容 API
-- **🎧 语音回复 (TTS)**: edge-tts 语音输出（默认开启）
+- **🎧 语音回复 (TTS)**: 默认使用 `GPT-SoVITS` 自然语音播报，`edge-tts` 作为保底回退
 - **🎧 语音识别 (STT)**: 支持将群友的语音消息转成文字再回复（SiliconFlow SenseVoice / OpenAI Whisper）
 - **🖼️ 图片识别 (Vision)**: AI 描述图片内容，支持 @图片 时自动触发（需要支持 vision 的模型）
 - **🔮 占卜功能**: 观音灵签、塔罗牌、今日运势、随机占卜、民俗黄历
@@ -177,10 +177,28 @@ AI_MODEL=deepseek-chat
 BOT_QQ=1802647053
 BOT_NICKNAME=深蓝战空        # 用于识别文本格式@
 
+# ===== TTS 语音回复 =====
+TTS_ENABLED=true
+TTS_PROVIDER=local-http
+TTS_SERVICE_URL=http://127.0.0.1:8765
+TTS_BACKEND=gpt-sovits
+TTS_MODEL=preset-dongxuelian
+TTS_MODEL_DIR=./data/voice-models
+TTS_VOICE=zh-CN-XiaoyiNeural
+TTS_SPEED=4
+TTS_STYLE=natural
+TTS_FALLBACK_TO_BAIDU=true
+TTS_RUNTIME_POLICY=model-default
+TTS_FALLBACK_CHAIN=edge-tts,legacy-baidu
+TTS_LONG_TEXT_PREFERRED_BACKEND=gpt-sovits
+TTS_LONG_TEXT_THRESHOLD=72
+TTS_RVC_SHORT_TEXT_MAX_LENGTH=28
+TTS_EXPERIMENTAL_RVC_ENABLED=false
+TTS_DEFAULT_CHARACTER=永雏塔菲
+TTS_CHARACTER_MODEL_MAP=永雏塔菲:preset-yongchutafi,冬雪莲:preset-dongxuelian
+TTS_GROUP_VOICE_ROLE_MAP=123456:永雏塔菲
+
 # ===== 功能开关 =====
-TTS_ENABLED=true             # 语音回复（默认开启）
-TTS_VOICE=zh-CN-XiaoyiNeural  # TTS 音色
-TTS_SPEED=4                  # 语速 1-9
 AT_TRIGGER=true              # 只响应@消息
 
 # ===== STT 语音识别（可选）=====
@@ -242,6 +260,62 @@ npm run build && npm start
 
 启动成功后访问 **http://localhost:3180** 查看 Dashboard 控制台。
 
+### 4.1 本机自然语音部署（GPT-SoVITS）
+
+当前仓库已经按以下目录约定完成联调：
+
+```text
+CodeBuddyWorkSpace/
+  QQTalker/
+  GPT-SoVITS/
+```
+
+推荐启动顺序：
+
+```bash
+# 1. 启动 GPT-SoVITS 官方 API
+cd ../GPT-SoVITS
+powershell -ExecutionPolicy Bypass -File start-api-v2.ps1
+
+# 2. 启动 QQTalker voice-service
+cd ../QQTalker/voice-service
+powershell -ExecutionPolicy Bypass -File start-local-service.ps1
+
+# 3. 启动 QQTalker
+cd ..
+npm run dev
+```
+
+本次部署默认使用：
+
+- `GPT-SoVITS`: `http://127.0.0.1:9880/tts`
+- `voice-service`: `http://127.0.0.1:8765`
+- `QQTalker Dashboard`: `http://127.0.0.1:3180`
+- 默认模型: `preset-yongchutafi`
+
+如果希望一键拉起上线所需服务，可以直接运行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-voice-stack.ps1
+```
+
+当前上线口径：
+
+- 默认语音链路固定为 `GPT-SoVITS`
+- `edge-tts` 仅作为保底回退
+- `RVC` 相关脚本与条目保留在仓库中用于历史实验回溯，但不再属于当前上线范围，也不纳入默认启动流程
+
+已整理好的参考音频位于：
+
+- `data/voice-models/dongxuelian/reference.wav`
+- `data/voice-models/yongchutafi/reference.wav`
+
+注意事项：
+
+- `GPT-SoVITS` 参考音频要求在 `3~10 秒` 内，当前仓库已统一裁成 `8 秒` 单声道 WAV。
+- Windows 环境下 `jieba_fast` 常见编译失败，仓库已兼容回退到 `jieba`。
+- 若官方 API 首次推理报英文词性依赖问题，当前兼容补丁会自动回退，不再阻塞中文播报链路。
+
 ### 5. 测试
 
 ```bash
@@ -251,6 +325,13 @@ npm test
 # 前端 E2E（基于 Playwright mock dashboard）
 npm run test:e2e
 ```
+
+本次 GPT 上线链路额外完成了如下运行验证：
+
+- `http://127.0.0.1:9880/tts` 直连合成成功，返回 `540204` 字节 WAV
+- `http://127.0.0.1:8765/preview` 代理合成成功，返回 `gpt-sovits / preset-dongxuelian`
+- `http://127.0.0.1:3180/api/voice/preview` QQTalker 预览成功，返回 Base64 音频
+- 真实 `at-reply` 遥测命中 `gpt-sovits / local-http`，`fallbackRate = 0`
 
 ---
 

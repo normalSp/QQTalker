@@ -1,0 +1,205 @@
+{
+  "character": "yongchutafi",
+  "generatedAt": "2026-04-09T15:21:48.046Z",
+  "model": "FunAudioLLM/SenseVoiceSmall",
+  "segments": [
+    {
+      "id": "yongchutafi-good-cat-auto-02",
+      "inputFile": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\raw\\yongchutafi-good-cat\\~-BV13S4y1Y7Zr.mp4",
+      "outputPath": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\segments\\yongchutafi-good-cat-auto-02.wav",
+      "transcript": "想认锤从长子。要撞死。他め",
+      "notes": "auto-picked from speech span 00:00:00.000 - 00:00:20.354",
+      "transcriptRaw": "想认锤从长子。要撞死。😊🎼他め。",
+      "transcriptClean": "想认锤从长子。要撞死。他め",
+      "transcriptionStatus": "draft",
+      "transcribedAt": "2026-04-09T15:21:41.513Z"
+    },
+    {
+      "id": "yongchutafi-good-cat-auto-01",
+      "inputFile": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\raw\\yongchutafi-good-cat\\~-BV13S4y1Y7Zr.mp4",
+      "outputPath": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\segments\\yongchutafi-good-cat-auto-01.wav",
+      "transcript": "恐怖呀，那不许拿下。啊，不要，他非要下播，他最怕今",
+      "notes": "auto-picked from speech span 00:02:35.299 - 00:04:28.366 | 尾句被截断，不建议直接入训练。",
+      "transcriptRaw": "🎼嗯，恐怖呀，那不许拿下。啊，不要，他非要下播，他最怕今。😊",
+      "transcriptClean": "恐怖呀，那不许拿下。啊，不要，他非要下播，他最怕今",
+      "transcriptionStatus": "draft",
+      "transcribedAt": "2026-04-09T15:21:42.005Z"
+    },
+    {
+      "id": "yongchutafi-dub-auto-14",
+      "inputFile": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\raw\\yongchutafi-dub\\_-BV1ZJ4m1w7Fq.mp4",
+      "outputPath": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\segments\\yongchutafi-dub-auto-14.wav",
+      "transcript": "再不起床，我们就要成热饼了",
+      "notes": "auto-picked from speech span 00:02:10.313 - 00:02:14.790",
+      "transcriptRaw": "再不起床，我们就要成热饼了。😊",
+      "transcriptClean": "再不起床，我们就要成热饼了",
+      "transcriptionStatus": "draft",
+      "transcribedAt": "2026-04-09T15:21:42.247Z"
+    },
+    {
+      "id": "yongchutafi-dub-auto-16",
+      "inputFile": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\raw\\yongchutafi-dub\\_-BV1ZJ4m1w7Fq.mp4",
+      "outputPath": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\segments\\yongchutafi-dub-auto-16.wav",
+      "transcript": "",
+      "notes": "auto-picked from speech span 00:02:20.702 - 00:02:24.834",
+      "transcriptRaw": "",
+      "transcriptClean": "",
+      "transcriptionStatus": "empty",
+      "transcribedAt": "2026-04-09T15:21:42.455Z"
+    },
+    {
+      "id": "yongchutafi-dub-auto-05",
+      "inputFile": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\raw\\yongchutafi-dub\\_-BV1ZJ4m1w7Fq.mp4",
+      "outputPath": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\segments\\yongchutafi-dub-auto-05.wav",
+      "transcript": "就是我还在做梦。脑袋出现了，整晚都的哈",
+      "notes": "auto-picked from speech span 00:02:28.708 - 00:02:34.305 | 全中文占比高，可保留为候选，但建议后续人工回听复核。",
+      "transcriptRaw": "就是我还在做梦。脑袋出现了，整晚都的哈哈。😊",
+      "transcriptClean": "就是我还在做梦。脑袋出现了，整晚都的哈",
+      "transcriptionStatus": "draft",
+      "transcribedAt": "2026-04-09T15:21:42.955Z"
+    },
+    {
+      "id": "yongchutafi-dub-auto-13",
+      "inputFile": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\raw\\yongchutafi-dub\\_-BV1ZJ4m1w7Fq.mp4",
+      "outputPath": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\segments\\yongchutafi-dub-auto-13.wav",
+      "transcript": "你是谁呀？还有再这样下去，快摔死呢",
+      "notes": "auto-picked from speech span 00:02:38.235 - 00:02:42.741",
+      "transcriptRaw": "你是谁呀？还有再这样下去，快摔死呢。😊",
+      "transcriptClean": "你是谁呀？还有再这样下去，快摔死呢",
+      "transcriptionStatus": "draft",
+      "transcribedAt": "2026-04-09T15:21:43.529Z"
+    },
+    {
+      "id": "yongchutafi-dub-auto-01",
+      "inputFile": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\raw\\yongchutafi-dub\\_-BV1ZJ4m1w7Fq.mp4",
+      "outputPath": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\segments\\yongchutafi-dub-auto-01.wav",
+      "transcript": "来了个金念包。等一下。でま",
+      "notes": "auto-picked from speech span 00:03:56.220 - 00:04:04.973 | 混合日语与拟声，当前不纳入中文训练集。",
+      "transcriptRaw": "来了个金念包。等等一下。😊でま。",
+      "transcriptClean": "来了个金念包。等一下。でま",
+      "transcriptionStatus": "draft",
+      "transcribedAt": "2026-04-09T15:21:44.038Z"
+    },
+    {
+      "id": "yongchutafi-dub-auto-07",
+      "inputFile": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\raw\\yongchutafi-dub\\_-BV1ZJ4m1w7Fq.mp4",
+      "outputPath": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\segments\\yongchutafi-dub-auto-07.wav",
+      "transcript": "やんでも。",
+      "notes": "auto-picked from speech span 00:04:05.608 - 00:04:10.551",
+      "transcriptRaw": "やんでも。",
+      "transcriptClean": "やんでも。",
+      "transcriptionStatus": "draft",
+      "transcribedAt": "2026-04-09T15:21:44.343Z"
+    },
+    {
+      "id": "yongchutafi-dub-auto-12",
+      "inputFile": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\raw\\yongchutafi-dub\\_-BV1ZJ4m1w7Fq.mp4",
+      "outputPath": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\segments\\yongchutafi-dub-auto-12.wav",
+      "transcript": "不是大象，大家都想趁这个机会好升级喵",
+      "notes": "auto-picked from speech span 00:04:51.093 - 00:04:55.690",
+      "transcriptRaw": "嗯，不是大象，大家都想趁这个机会好好升级喵。😊",
+      "transcriptClean": "不是大象，大家都想趁这个机会好升级喵",
+      "transcriptionStatus": "draft",
+      "transcribedAt": "2026-04-09T15:21:44.806Z"
+    },
+    {
+      "id": "yongchutafi-dub-auto-06",
+      "inputFile": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\raw\\yongchutafi-dub\\_-BV1ZJ4m1w7Fq.mp4",
+      "outputPath": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\segments\\yongchutafi-dub-auto-06.wav",
+      "transcript": "我会和你们一起练习的，能不能把我先放出来喵",
+      "notes": "auto-picked from speech span 00:05:14.520 - 00:05:19.667 | 中文完整度较高，适合作为本轮新增候选。",
+      "transcriptRaw": "我会和你们一起练习的，能不能把我先放出来喵？😊",
+      "transcriptClean": "我会和你们一起练习的，能不能把我先放出来喵",
+      "transcriptionStatus": "draft",
+      "transcribedAt": "2026-04-09T15:21:45.053Z"
+    },
+    {
+      "id": "yongchutafi-dub-auto-10",
+      "inputFile": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\raw\\yongchutafi-dub\\_-BV1ZJ4m1w7Fq.mp4",
+      "outputPath": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\segments\\yongchutafi-dub-auto-10.wav",
+      "transcript": "兄弟们，我升你了。哈等了这么多年中医院",
+      "notes": "auto-picked from speech span 00:05:40.892 - 00:05:45.666",
+      "transcriptRaw": "兄弟们，我升你了。哈哈等了这么多年中医院。😊",
+      "transcriptClean": "兄弟们，我升你了。哈等了这么多年中医院",
+      "transcriptionStatus": "draft",
+      "transcribedAt": "2026-04-09T15:21:45.452Z"
+    },
+    {
+      "id": "yongchutafi-dub-auto-08",
+      "inputFile": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\raw\\yongchutafi-dub\\_-BV1ZJ4m1w7Fq.mp4",
+      "outputPath": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\segments\\yongchutafi-dub-auto-08.wav",
+      "transcript": "もし。ちも。坏掉的妙",
+      "notes": "auto-picked from speech span 00:08:08.409 - 00:08:13.331",
+      "transcriptRaw": "もし。ちも。坏掉的妙。",
+      "transcriptClean": "もし。ちも。坏掉的妙",
+      "transcriptionStatus": "draft",
+      "transcribedAt": "2026-04-09T15:21:45.979Z"
+    },
+    {
+      "id": "yongchutafi-dub-auto-02",
+      "inputFile": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\raw\\yongchutafi-dub\\_-BV1ZJ4m1w7Fq.mp4",
+      "outputPath": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\segments\\yongchutafi-dub-auto-02.wav",
+      "transcript": "便有的真争兽人呢，我也想他呢必须等他弄出破绽才",
+      "notes": "auto-picked from speech span 00:08:54.702 - 00:09:01.297 | 中文内容完整度较高，可作为首批候选。",
+      "transcriptRaw": "便有的真争兽人呢，我也想他呢必须等他弄出破绽才。😊",
+      "transcriptClean": "便有的真争兽人呢，我也想他呢必须等他弄出破绽才",
+      "transcriptionStatus": "draft",
+      "transcribedAt": "2026-04-09T15:21:46.242Z"
+    },
+    {
+      "id": "yongchutafi-dub-auto-11",
+      "inputFile": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\raw\\yongchutafi-dub\\_-BV1ZJ4m1w7Fq.mp4",
+      "outputPath": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\segments\\yongchutafi-dub-auto-11.wav",
+      "transcript": "他病我会赢哦。",
+      "notes": "auto-picked from speech span 00:09:23.330 - 00:09:27.980",
+      "transcriptRaw": "他病我会赢哦。😊",
+      "transcriptClean": "他病我会赢哦。",
+      "transcriptionStatus": "draft",
+      "transcribedAt": "2026-04-09T15:21:46.690Z"
+    },
+    {
+      "id": "yongchutafi-dub-auto-04",
+      "inputFile": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\raw\\yongchutafi-dub\\_-BV1ZJ4m1w7Fq.mp4",
+      "outputPath": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\segments\\yongchutafi-dub-auto-04.wav",
+      "transcript": "ど么这么多か。いひひひ",
+      "notes": "auto-picked from speech span 00:09:28.517 - 00:09:34.387 | 尾部笑声和日语成分过多，不建议直接入训练。",
+      "transcriptRaw": "ど么这么多か。いひひひひひ。",
+      "transcriptClean": "ど么这么多か。いひひひ",
+      "transcriptionStatus": "draft",
+      "transcribedAt": "2026-04-09T15:21:47.055Z"
+    },
+    {
+      "id": "yongchutafi-dub-auto-03",
+      "inputFile": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\raw\\yongchutafi-dub\\_-BV1ZJ4m1w7Fq.mp4",
+      "outputPath": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\segments\\yongchutafi-dub-auto-03.wav",
+      "transcript": "被猴子先生关注了。悠よ。マじゃ",
+      "notes": "auto-picked from speech span 00:09:54.518 - 00:10:00.769 | 中文主句后混入日语尾音，建议后续换片段。",
+      "transcriptRaw": "被猴子先生关注了。😊悠よ。マじゃ。",
+      "transcriptClean": "被猴子先生关注了。悠よ。マじゃ",
+      "transcriptionStatus": "draft",
+      "transcribedAt": "2026-04-09T15:21:47.397Z"
+    },
+    {
+      "id": "yongchutafi-dub-auto-15",
+      "inputFile": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\raw\\yongchutafi-dub\\_-BV1ZJ4m1w7Fq.mp4",
+      "outputPath": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\segments\\yongchutafi-dub-auto-15.wav",
+      "transcript": "链接的话特别能升级吗？还是只有出场键能升级呀",
+      "notes": "auto-picked from speech span 00:12:11.592 - 00:12:15.897",
+      "transcriptRaw": "嗯，链接的话特别能升级吗？还是只有出场键能升级呀。😊",
+      "transcriptClean": "链接的话特别能升级吗？还是只有出场键能升级呀",
+      "transcriptionStatus": "draft",
+      "transcribedAt": "2026-04-09T15:21:47.704Z"
+    },
+    {
+      "id": "yongchutafi-dub-auto-09",
+      "inputFile": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\raw\\yongchutafi-dub\\_-BV1ZJ4m1w7Fq.mp4",
+      "outputPath": "D:\\workspace\\CodeBuddyWorkSpace\\QQTalker\\data\\voice-models\\training\\yongchutafi\\segments\\yongchutafi-dub-auto-09.wav",
+      "transcript": "到底是不是整能人外没读懂，怎么这么复杂",
+      "notes": "auto-picked from speech span 00:12:39.655 - 00:12:44.485",
+      "transcriptRaw": "到底是不是整能人外没读懂，怎么这么复杂。😊",
+      "transcriptClean": "到底是不是整能人外没读懂，怎么这么复杂",
+      "transcriptionStatus": "draft",
+      "transcribedAt": "2026-04-09T15:21:48.046Z"
+    }
+  ]
+}

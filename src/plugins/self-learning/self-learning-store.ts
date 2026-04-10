@@ -15,6 +15,7 @@ export interface CapturedMessageRecord {
 export interface StylePatternRecord {
   groupId: number;
   userId: number;
+  nickname?: string;
   patternType: string;
   patternValue: string;
   weight: number;
@@ -33,7 +34,9 @@ export interface SlangRecord {
 export interface SocialEdgeRecord {
   groupId: number;
   sourceUserId: number;
+  sourceNickname?: string;
   targetUserId: number;
+  targetNickname?: string;
   relationType: string;
   score: number;
   interactions: number;
@@ -43,6 +46,7 @@ export interface SocialEdgeRecord {
 export interface AffectionRecord {
   groupId: number;
   userId: number;
+  nickname?: string;
   score: number;
   lastDelta: number;
   updatedAt: number;

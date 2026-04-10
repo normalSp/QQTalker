@@ -1,0 +1,18 @@
+{
+  "character": "永雏塔菲",
+  "backend": "rvc-compat",
+  "versionId": "exp-rvc",
+  "datasetTag": "public-data-v1",
+  "targetSampleRate": 40000,
+  "priorityRules": [
+    "优先高辨识度闲聊和配音原声",
+    "避免过度依赖高情绪尖锐片段",
+    "与 stable-gpt 做同句 A/B 试听"
+  ],
+  "evalChecklist": [
+    "角色贴脸度",
+    "自然度是否优于 stable-gpt",
+    "是否出现塑料感或机械感",
+    "实时链路可用性"
+  ]
+}
