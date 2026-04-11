@@ -6,6 +6,7 @@ import { GreetingService } from './greeting-service';
 import { FolkDivinationService } from './folk-divination';
 import { SessionManager } from './session-manager';
 import { DashboardService } from './dashboard-service';
+import type { PersonaService } from './persona-service';
 
 
 
@@ -67,6 +68,7 @@ export class SchedulerService {
 
   /** Dashboard 引用（用于活跃群统计） */
   private dashboard: DashboardService | null = null;
+  private personas: PersonaService | null = null;
 
   constructor(onebot: OneBotClient, ai: CodeBuddyClient, sessionManager: SessionManager) {
     this.onebot = onebot;
@@ -104,6 +106,10 @@ export class SchedulerService {
     this.dashboard = dashboard;
     // 立即同步当前活跃群
     dashboard.setActiveGroups(this.activeGroups);
+  }
+
+  setPersonaService(personas: PersonaService): void {
+    this.personas = personas;
   }
 
   /**
@@ -254,17 +260,19 @@ export class SchedulerService {
 
       // 获取该群的最近聊天记录作为上下文
       const history = this.sessionManager.getHistory(targetGroup, 0, 'group');
+      const persona = this.personas ? await this.personas.resolvePersona(targetGroup) : null;
+      const personaName = persona?.profile.name || 'Claw';
 
       // 构建带上下文的提示词
       const contextSummary = history.slice(-15).map(msg =>
         msg.role === 'user'
           ? msg.content
-          : '[Claw]: ' + msg.content
+          : `[${personaName}]: ` + msg.content
       ).join('\n');
 
       const prompt =
         '[\u7fa4\u804a\u53c2\u4e0e]\n' +
-        '\u4f60\u662f\u5728QQ\u7fa4\u91cc\u7684\u732b\u5a18Claw\uff0c\u5927\u5bb6\u6b63\u5728\u70ed\u70c8\u804a\u5929\u3002\n' +
+        `你是在QQ群里的${personaName}，大家正在热烈聊天。\n` +
         '\u4ee5\u4e0b\u662f\u6700\u8fd1\u7684\u804a\u5929\u8bb0\u5f55:\n\n' +
         contextSummary +
         '\n\n---\n' +
@@ -276,6 +284,7 @@ export class SchedulerService {
       // 调用 AI (带上下文历史)
       const msg = await this.ai.chat(prompt, history.slice(-10), {
         isPersonalMode: false,
+        systemPrompt: persona ? this.personas?.buildChatSystemPrompt(persona, 'group') : undefined,
       });
 
       if (!msg || !msg.trim() || msg.trim().length < 3) {
@@ -298,7 +307,7 @@ export class SchedulerService {
       );
       this.sessionManager.addMessage(
         targetGroup, 0,
-        { role: 'assistant', content: '[Claw\u4e3b\u52a8]: ' + msg.trim() },
+        { role: 'assistant', content: `[${personaName}主动]: ` + msg.trim() },
         'group'
       );
     } catch (err) {

@@ -15,6 +15,7 @@ import { VisionService } from '../services/vision-service';
 import { BlockService } from '../services/block-service';
 import { hasImage, extractImageCq } from '../types/onebot';
 import type { PluginManager } from '../plugins/plugin-manager';
+import type { PersonaService, ResolvedPersona } from '../services/persona-service';
 import dotenv from 'dotenv';
 
 
@@ -54,6 +55,7 @@ export class MessageHandler {
   private dashboard: DashboardService | null = null;
   private blockService: BlockService | null = null;
   private pluginManager: PluginManager | null = null;
+  private personas: PersonaService | null = null;
   private vision: VisionService = new VisionService();
   private processing = new Set<string>();
   
@@ -104,8 +106,18 @@ export class MessageHandler {
     this.pluginManager = pluginManager;
   }
 
+  setPersonaService(personas: PersonaService): void {
+    this.personas = personas;
+    this.astrbotRelay?.setPersonaService(personas);
+  }
+
   getAstrbotStatus(): unknown {
     return this.astrbotRelay?.getRuntimeSnapshot() || null;
+  }
+
+  private async resolvePersona(groupId: number): Promise<ResolvedPersona | null> {
+    if (!this.personas) return null;
+    return this.personas.resolvePersona(groupId);
   }
 
   refreshAstrbotRuntimeConfig(): void {
@@ -137,6 +149,7 @@ export class MessageHandler {
           return acc;
         }, {}),
       complexTaskMinLength: parseInt(process.env.ASTRBOT_COMPLEX_TASK_MIN_LENGTH || '48', 10),
+      complexTaskMessageMaxChars: parseInt(process.env.ASTRBOT_COMPLEX_TASK_MESSAGE_MAX_CHARS || '360', 10),
       timeoutMs: parseInt(process.env.ASTRBOT_TIMEOUT_MS || '45000', 10),
       fallbackToLocal: process.env.ASTRBOT_FALLBACK_TO_LOCAL !== 'false',
     });
@@ -446,22 +459,77 @@ export class MessageHandler {
     const history = this.sessionManager.getHistory(
       groupMsg.group_id, groupMsg.user_id, mode
     );
+    const persona = await this.resolvePersona(groupMsg.group_id);
     const systemPrefix = await this.pluginManager?.buildSystemPrefix({
       groupId: groupMsg.group_id,
       userId: groupMsg.user_id,
       nickname,
+      basePersonaId: persona?.basePersonaId || '',
       rawText,
       userMessage,
       history,
       mode,
     });
+    let systemPrompt = persona
+      ? this.personas?.buildChatSystemPrompt(persona, mode, systemPrefix)
+      : undefined;
+
+    const modelRequest = await this.pluginManager?.beforeModelRequest({
+      groupId: groupMsg.group_id,
+      userId: groupMsg.user_id,
+      nickname,
+      mode,
+      rawText,
+      userMessage,
+      history,
+      basePersonaId: persona?.basePersonaId || '',
+      systemPrefix,
+      systemPrompt,
+    });
+    if (modelRequest?.handled) {
+      const interceptedReply = modelRequest.reply || '';
+      if (interceptedReply) {
+        this.sessionManager.addMessage(
+          groupMsg.group_id, groupMsg.user_id,
+          { role: 'assistant', content: interceptedReply },
+          mode
+        );
+        await this.sendAiReplyWithOptionalVoice(groupMsg, interceptedReply, {
+          textReply: formatAtText(groupMsg.user_id, interceptedReply),
+          ttsScene: 'at-reply',
+          allowVoice: true,
+          logPrefix: '[@流程]',
+          voiceLogLabel: '[@语音]',
+          persona,
+        });
+      }
+      return;
+    }
+    const requestUserMessage = modelRequest?.userMessage ?? userMessage;
+    const requestHistory = modelRequest?.history ?? history;
+    const requestSystemPrefix = modelRequest?.systemPrefix ?? systemPrefix;
+    systemPrompt = modelRequest?.systemPrompt ?? systemPrompt;
 
     logger.debug('[@流程] 2/4 调用AI生成回复...');
     this.dashboard?.recordAiCall();
-    const reply = await this.codebuddy.chat(userMessage, history, {
+    let reply = await this.codebuddy.chat(requestUserMessage, requestHistory, {
       isPersonalMode: mode === 'personal',
-      systemPrefix,
+      systemPrefix: requestSystemPrefix,
+      systemPrompt,
     });
+    reply = await this.pluginManager?.afterModelResponse({
+      groupId: groupMsg.group_id,
+      userId: groupMsg.user_id,
+      nickname,
+      mode,
+      rawText,
+      userMessage: requestUserMessage,
+      history: requestHistory,
+      basePersonaId: persona?.basePersonaId || '',
+      systemPrefix: requestSystemPrefix,
+      systemPrompt,
+      reply,
+    }) || reply;
     logger.debug(`[@流程] 2/4 AI返回完成, 长度: ${reply.length}`);
 
     // 保存回复
@@ -478,6 +546,7 @@ export class MessageHandler {
       allowVoice: true,
       logPrefix: '[@流程]',
       voiceLogLabel: '[@语音]',
+      persona,
     });
   }
 
@@ -490,9 +559,10 @@ export class MessageHandler {
       allowVoice: boolean;
       logPrefix: string;
       voiceLogLabel: string;
+      persona?: ResolvedPersona | null;
     }
   ): Promise<void> {
-    const { textReply, ttsScene, allowVoice, logPrefix, voiceLogLabel } = options;
+    const { textReply, ttsScene, allowVoice, logPrefix, voiceLogLabel, persona } = options;
     const shouldSendVoice = allowVoice && this.tts.isEnabled();
 
     if (shouldSendVoice) {
@@ -507,6 +577,7 @@ export class MessageHandler {
       logger.debug(`${logPrefix} 4/4 后台TTS合成...`);
       this.dashboard?.recordTtsCall();
       const spokenCharacter =
+        persona?.ttsCharacter ||
         config.ttsGroupVoiceRoleMap[String(groupMsg.group_id)] ||
         config.ttsDefaultCharacter;
       const spokenReply = optimizeSpokenReplyText(rawReply, {
@@ -561,30 +632,78 @@ export class MessageHandler {
     const history = this.sessionManager.getHistory(
       groupMsg.group_id, groupMsg.user_id, mode
     );
+    const persona = await this.resolvePersona(groupMsg.group_id);
     const systemPrefix = await this.pluginManager?.buildSystemPrefix({
       groupId: groupMsg.group_id,
       userId: groupMsg.user_id,
       nickname,
+      basePersonaId: persona?.basePersonaId || '',
       rawText,
       userMessage: rawText,
       history,
       mode,
     });
+    let systemPrompt = persona
+      ? this.personas?.buildChatSystemPrompt(persona, mode, systemPrefix)
+      : undefined;
 
     // 构建提示词：告诉AI当前群聊上下文，让它决定是否+如何参与
     const contextPrompt =
       '[\u7fa4\u804a\u4e0a\u4e0b\u6587]\n' +
-      '\u4f60\u662f\u5728QQ\u7fa4\u91cc\u7684\u732b\u5a18Claw\u3002' +
+      `你是QQ群里的${persona?.profile.name || 'Claw'}。` +
       '\u4ee5\u4e0b\u662f\u8fd1\u671f\u7684\u804a\u5929\u8bb0\u5f55\uff0c\u4f60\u53ef\u4ee5\u770b\u5230\u5927\u5bb6\u5728\u804a\u4ec0\u4e48\u3002' +
       '\u5982\u679c\u4f60\u89c9\u5f97\u81ea\u5df1\u6709\u8bdd\u53ef\u4ee5\u8bf4\uff0c\u5c31\u81ea\u7136\u5730\u63d2\u4e00\u53e5\u3002' +
       '\u5982\u679c\u4e0d\u60f3\u8bf4\uff0c\u56de\u590d\u201c\u201d\u5373\u53ef\u3002' +
       '\u8981\u6c42:\u4e0d@\u4eba, \u4e0d\u63d0\u95ee, \u4e24\u53e5\u5185, \u52a0\u55b5~';
 
     // 把上下文prompt当作用户消息发给AI
-    const reply = await this.codebuddy.chat(contextPrompt, history.slice(-20), {
-      isPersonalMode: false,
+    const passiveHistory = history.slice(-20);
+    const modelRequest = await this.pluginManager?.beforeModelRequest({
+      groupId: groupMsg.group_id,
+      userId: groupMsg.user_id,
+      nickname,
+      mode,
+      rawText,
+      userMessage: contextPrompt,
+      history: passiveHistory,
+      basePersonaId: persona?.basePersonaId || '',
       systemPrefix,
+      systemPrompt,
     });
+    if (modelRequest?.handled) {
+      if (!modelRequest.reply || !modelRequest.reply.trim()) {
+        logger.debug('[被动] 插件已拦截本次回复');
+        return;
+      }
+      await this.sendAiReplyWithOptionalVoice(groupMsg, modelRequest.reply.trim(), {
+        textReply: modelRequest.reply.trim(),
+        ttsScene: 'passive-reply',
+        allowVoice: config.ttsReplyMode === 'all-replies',
+        logPrefix: '[被动流程]',
+        voiceLogLabel: '[被动语音]',
+        persona,
+      });
+      return;
+    }
+
+    let reply = await this.codebuddy.chat(modelRequest?.userMessage ?? contextPrompt, modelRequest?.history ?? passiveHistory, {
+      isPersonalMode: false,
+      systemPrefix: modelRequest?.systemPrefix ?? systemPrefix,
+      systemPrompt: modelRequest?.systemPrompt ?? systemPrompt,
+    });
+    reply = await this.pluginManager?.afterModelResponse({
+      groupId: groupMsg.group_id,
+      userId: groupMsg.user_id,
+      nickname,
+      mode,
+      rawText,
+      userMessage: modelRequest?.userMessage ?? contextPrompt,
+      history: modelRequest?.history ?? passiveHistory,
+      basePersonaId: persona?.basePersonaId || '',
+      systemPrefix: modelRequest?.systemPrefix ?? systemPrefix,
+      systemPrompt: modelRequest?.systemPrompt ?? systemPrompt,
+      reply,
+    }) || reply;
 
     if (!reply || !reply.trim() || reply.trim().length < 3) {
       logger.debug('[\u88ab\u52a8] AI\u9009\u62e9\u4e0d\u8bf4\u8bdd');
@@ -598,12 +717,13 @@ export class MessageHandler {
       allowVoice: config.ttsReplyMode === 'all-replies',
       logPrefix: '[被动流程]',
       voiceLogLabel: '[被动语音]',
+      persona,
     });
 
     // 保存到上下文
     this.sessionManager.addMessage(
       groupMsg.group_id, groupMsg.user_id,
-      { role: 'assistant', content: '[Claw\u4e3b\u52a8\u63d2\u8bdd]: ' + passiveReply },
+      { role: 'assistant', content: `[${persona?.profile.name || 'Claw'}主动插话]: ` + passiveReply },
       mode
     );
 

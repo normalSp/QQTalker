@@ -29,6 +29,7 @@ describe('PluginManager', () => {
       aiClient: {} as any,
       sessions: {} as any,
       dashboard: {} as any,
+      personas: {} as any,
       dataDir: process.cwd(),
     });
 

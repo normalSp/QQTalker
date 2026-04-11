@@ -41,6 +41,25 @@ export const state = {
     runs: [],
     importMode: 'merge',
   },
+  plugins: {
+    items: [],
+    pages: [],
+    selectedId: '',
+    selectedDetail: null,
+    selectedConfig: {},
+    selectedSchema: null,
+    selectedLogs: [],
+    selectedBridgeOverview: null,
+    selectedBridgeCategories: [],
+  },
+  navigationFocus: {
+    personaGroupId: '',
+    personaPersonaId: '',
+    personaReviewId: null,
+    selfLearningGroupId: '',
+    selfLearningPersonaId: '',
+    selfLearningReviewId: null,
+  },
 };
 
 export const runtime = {

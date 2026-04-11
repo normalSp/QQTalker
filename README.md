@@ -1,273 +1,131 @@
-# QQTalker - QQ聊天机器人
+# QQTalker
 
-将你的QQ号变成一只可爱的**猫娘AI机器人（Claw）**，支持群聊共享上下文、语音回复、语音识别、图片识别、占卜，以及可插拔的**自学习插件系统**。
+QQTalker 是一个基于 OneBot 的 QQ 机器人项目，主打“可爱猫娘 + 群聊上下文 + 本机语音 + Dashboard 控制台 + 插件扩展”这条路线喵~ 🐾
 
-## 功能特点
+它既可以只跑最小文本聊天，也可以继续接上 `voice-service`、`GPT-SoVITS`、Astrbot、自学习插件，逐步升级成一套更完整的本地机器人工作流。
 
-- **💬 群聊模式（默认）**: 全群共享对话上下文，Claw 记住每个人说了什么，可 @指定人回复
-- **👤 私聊模式**: 可切换为每人独立对话
-- **🔄 AI智能回复**: 接入 DeepSeek/OpenAI 等 OpenAI 兼容 API
-- **🎧 语音回复 (TTS)**: 默认使用 `GPT-SoVITS` 自然语音播报，`edge-tts` 作为保底回退
-- **🎧 语音识别 (STT)**: 支持将群友的语音消息转成文字再回复（SiliconFlow SenseVoice / OpenAI Whisper）
-- **🖼️ 图片识别 (Vision)**: AI 描述图片内容，支持 @图片 时自动触发（需要支持 vision 的模型）
-- **🔮 占卜功能**: 观音灵签、塔罗牌、今日运势、随机占卜、民俗黄历
-- **👋 入群欢迎**: 新成员入群时自动发送个性化欢迎语
-- **📡 Astrbot 转发**: 可将消息转发给其他 AI 机器人（如 Astrbot），实现多 AI 协作
-- **🧩 插件运行时**: 支持内置插件和外部插件接入，开放消息钩子、Prompt 注入、命令与 Dashboard API 扩展
-- **🧠 自学习插件**: 学习对话风格、群组黑话、22 类社交关系、好感度、情绪、38 类目标场景和长期记忆
-- **📈 高级学习分析**: 轻量话题聚类、场景分布、记忆图谱摘要、批量学习运行记录
-- **📝 人格审查流**: 自动生成建议人格片段，支持在控制台审批后注入回复上下文
-- **📊 Dashboard 控制台**: 内置 Web 控制台，实时查看运行状态和统计
-- **@触发**: 群内 @机器人 即可触发回复
-- **被动插聊**: 机器人会偶尔主动参与群聊（15%概率，带上下文理解）
-- **定时问候**: 每日早安/午安/晚安/运势广播
-- **自动重连**: 断线指数退避重连机制
-- **频率控制**: 自适应发送限速，避免 QQ 风控
+## ✨ 你能用它做什么
 
-## 架构
+- 💬 把 QQ 账号接入 OpenAI 兼容模型做群聊机器人
+- 🧠 让机器人记住群里最近在聊什么，而不是每次都失忆
+- 🎤 给回复接上自然语音播报，默认联调口径是 `GPT-SoVITS`
+- 🎧 把群友发来的语音先转文字再参与对话
+- 🖼️ 让机器人看图说话
+- 🛰️ 把复杂任务转发给 Astrbot，做多机器人协作
+- 📊 用 Dashboard 看运行状态、日志、自学习数据和配置
+- 🧩 用插件扩展消息钩子、Prompt 注入、群命令和 Dashboard API
 
-```
-┌────────────────┬─── WebSocket ───┬────────────┬─ HTTP API ─┬────────────┐
-│  QQ消息/事件   │ ──────────────→ │ QQTalker   │ ─────────→ │  AI API    │
-│ (OneBot)       │ ←────────────── │            │ ←───────── │           │
-└────────────────┴────────  消息转发  └────────────┴── AI响应 ──┴────────────┘
-                              +
-                    ┌──────────┬ Dashboard ┬────┬ STT/Vision ┐
-                    │ :3180     │ TTS/Divine│
-                    └──────────┴── Web UI ─┴ Services   ┘
+## 🧱 架构概览
+
+```text
+OneBot <-> QQTalker(Node.js) <-> AI API
+                      |
+                      +-> Dashboard (:3180)
+                      +-> voice-service (:8765)
+                              |
+                              +-> GPT-SoVITS (:9880) / edge-tts
 ```
 
-## 🖥️ Dashboard 控制台
+更详细的开发者架构说明见 [`docs/architecture.md`](docs/architecture.md)。
 
-QQTalker 内置了强大的 Web 控制台，提供实时监控和管理功能。
+## 🧰 先准备哪些东西
 
-### 访问控制台
+| 组件 | 是否必需 | 用途 |
+|------|----------|------|
+| Node.js | 必需 | 运行 QQTalker 主程序与脚本 |
+| OneBot 实现（如 NapCat） | 必需 | 接收 QQ 消息、发送回复 |
+| OpenAI 兼容 API | 必需 | 提供 AI 对话能力 |
+| Python 3.10 左右 | 可选 | 运行 `voice-service` |
+| `voice-service` | 可选 | 给 QQTalker 提供统一 TTS HTTP 接口 |
+| `GPT-SoVITS` | 可选 | 提供更自然的本机语音合成 |
+| `ffmpeg` | 可选但推荐 | 语音处理、训练脚本、部分 STT 场景会用到 |
+| Astrbot | 可选 | 做消息转发和复杂任务委托 |
 
-启动 QQTalker 后，在浏览器中访问：
-```
-http://localhost:3180
-```
+## 🚀 小白推荐上手路线
 
-### 控制台功能
+如果你是第一次接这个项目，推荐按下面顺序来：
 
-- **📊 仪表盘**：实时显示运行状态、消息统计、系统资源
-- **📜 活动日志**：查看实时日志流，支持搜索和筛选
-- **📈 数据分析**：图表展示消息趋势、AI调用统计等
-- **🧠 自学习中心**：可视化管理风格、黑话、关系图谱、记忆、场景分布、聚类结果与人格审查
-- **🧰 学习数据治理**：支持导出/导入学习数据、清理单群记录、重建分析快照、调整自动学习策略
-- **🔧 配置管理**：在线修改配置，支持热重载
-- **💻 进程信息**：查看系统资源占用和运行状态
-- **📊 智能日志分析器**：访问 `http://localhost:3180/analyzer` 查看专业日志分析
+1. 先跑通“纯文本聊天”。
+2. 确认 Dashboard 能打开。
+3. 再接 `voice-service`。
+4. 最后再接 `GPT-SoVITS`、Astrbot、训练脚本等进阶模块。
 
-### 智能日志分析器功能
+这样最不容易一上来就被多进程和外部依赖绊住喵~ 🌸
 
-- **📈 增强的日志信息展示**：日志摘要面板、服务标签系统、双行布局
-- **🔍 强大的搜索和筛选**：实时搜索、级别筛选、服务筛选、组合筛选
-- **📥 完整的日志操作工具**：导出功能、回到顶部、清空日志
-- **🎨 优化的界面体验**：粒子动画背景、交互式图表、响应式设计、流畅动画
-- **📊 数据可视化增强**：8个统计指标、趋势指示、交互式图表（饼图、柱状图、折线图等）
+## 🪄 路线一：先跑最小可运行版（只聊天）
 
-### 控制台启动说明
-
-推荐直接双击根目录的：
-
-```bat
-launch-qqtalker.bat
-```
-
-这个入口会统一拉起：
-
-- `GPT-SoVITS`
-- `voice-service`
-- `QQTalker`
-
-如果你更习惯命令行，也可以执行：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File start-voice-stack.ps1
-```
-
----
-
-## 🚀 群内命令大全
-
-所有命令都需要 **@机器人** 才能触发。
-
-### 基础聊天
-
-| 命令 | 说明 | 示例 |
-|------|------|------|
-| `@Claw <消息>` | 聊天/提问 | `@Claw 你好` |
-| `@Claw <消息>` | 在群聊模式下多人同时聊，Claw 会记住每个人的发言并综合回复 | `@Claw 大家觉得这个方案怎么样？` |
-| `@Claw [图片]` | 发送图片让 AI 描述（需 vision 模型） | `@Claw [图片] 这是什么？` |
-
-> **默认行为**: 全群共享上下文，每条消息以 `[昵称]: 内容` 格式发送给 AI。Claw 可以记住 A 之前说的话，并在回复 B 时引用。
-
-### 模式切换
-
-| 命令 | 说明 |
-|------|------|
-| `@Claw 私聊` 或 `个人模式` | 切换到 **私聊模式**：每人独立对话，互不干扰 |
-| `@Claw 群聊` 或 `群模式` | 切换回 **群聊模式（默认）**：全群共享上下文 |
-| `@Claw 清理` 或 `重置` | 清空当前会话历史，重新开始 |
-
-### 占卜功能
-
-| 命令 | 说明 |
-|------|------|
-| `@Claw 抽签` | **观音灵签** - 100签随机抽取，附解签 |
-| `@Claw 塔罗` | **塔罗牌** - 从22张大阿卡纳中抽一张解读 |
-| `@Claw 运势` | **今日运势** - 爱情/事业/财运/综合四个维度 |
-| `@Claw 占卜` | **随机占卜** - 混合多种术数的神秘结果 |
-
-> 占卜结果由本地算法生成，不消耗 AI 额度。
-
-### Astrbot 转发（可选）
-
-| 命令 | 说明 |
-|------|------|
-| `@Claw /Astrbot` | 开启/关闭该群的 Astrbot 转发模式 |
-| `@Claw /Astrbot <消息>` | 直接转发消息给 Astrbot |
-
-### 其他
-
-| 操作 | 说明 |
-|------|------|
-| 直接发文字 | 默认需要 @机器人才响应（但 15% 概率会主动插话） |
-| 发送图片 | 如果模型支持 vision，AI 会描述图片内容 |
-| 发送语音 | 自动 STT 识别为文字后处理（需开启 STT） |
-| 新人入群 | 自动发送欢迎语 |
-
-### 自学习命令
-
-| 命令 | 说明 |
-|------|------|
-| `@Claw /learning_status` | 查看自学习统计与运行状态 |
-| `@Claw /start_learning` | 开启自动学习 |
-| `@Claw /stop_learning` | 暂停自动学习 |
-| `@Claw /force_learning` | 立即执行一次学习并生成人格审查建议 |
-| `@Claw /affection_status` | 查看当前群好感度排行 |
-| `@Claw /set_mood <情绪>` | 手动设置当前群情绪 |
-| `@Claw /scene_status` | 查看当前群主要对话场景分布 |
-
----
-
-## 安装配置
-
-### 1. 克隆并安装依赖
+### 1. 安装主程序依赖
 
 ```bash
-cd QQTalker
 npm install
 ```
 
-### 2. 配置环境变量
+### 2. 复制配置模板
 
 ```bash
 cp .env.example .env
 ```
 
-编辑 `.env` 文件：
+Windows PowerShell 也可以用：
 
-```env
-# ===== OneBot 配置 =====
-WS_URL=ws://127.0.0.1:3001
-
-# ===== AI 配置（OpenAI兼容接口）=====
-AI_API_KEY=sk-xxxxx
-AI_BASE_URL=https://api.deepseek.com/v1
-AI_MODEL=deepseek-chat
-
-# ===== 机器人身份 =====
-BOT_QQ=1802647053
-BOT_NICKNAME=深蓝战空        # 用于识别文本格式@
-
-# ===== TTS 语音回复 =====
-TTS_ENABLED=true
-TTS_PROVIDER=local-http
-TTS_SERVICE_URL=http://127.0.0.1:8765
-TTS_BACKEND=gpt-sovits
-TTS_MODEL=preset-dongxuelian
-TTS_MODEL_DIR=./data/voice-models
-TTS_VOICE=zh-CN-XiaoyiNeural
-TTS_SPEED=4
-TTS_STYLE=natural
-TTS_FALLBACK_TO_BAIDU=true
-TTS_RUNTIME_POLICY=model-default
-TTS_FALLBACK_CHAIN=edge-tts,legacy-baidu
-TTS_LONG_TEXT_PREFERRED_BACKEND=gpt-sovits
-TTS_LONG_TEXT_THRESHOLD=72
-TTS_RVC_SHORT_TEXT_MAX_LENGTH=28
-TTS_EXPERIMENTAL_RVC_ENABLED=false
-TTS_DEFAULT_CHARACTER=永雏塔菲
-TTS_CHARACTER_MODEL_MAP=永雏塔菲:preset-yongchutafi,冬雪莲:preset-dongxuelian
-TTS_GROUP_VOICE_ROLE_MAP=123456:永雏塔菲
-
-# ===== 功能开关 =====
-AT_TRIGGER=true              # 只响应@消息
-
-# ===== STT 语音识别（可选）=====
-STT_ENABLED=true              # 开启语音消息转文字
-STT_MODEL=FunAudioLLM/SenseVoiceSmall  # 模型（默认 SiliconFlow）
-STT_BASE_URL=                 # STT API 地址（留空用 SiliconFlow）
-
-# ===== 群设置 =====
-GROUP_WHITELIST=             # 允许的群号（逗号分隔，留空允许所有）
-MAX_HISTORY=100              # 最大历史消息数
-
-# ===== 定时任务 =====
-SCHEDULE_GROUPS=             # 定时问候的目标群号（留空=所有活跃群）
-
-# ===== Astrbot 转发（可选）=====
-ASTRBOT_QQ=                  # 目标 Astrbot QQ 号（不配置则禁用）
-
-# ===== 日志 =====
-LOG_LEVEL=info               # debug/info/warn/error
-
-# ===== 自学习插件 =====
-SELF_LEARNING_ENABLED=true
-SELF_LEARNING_DATA_DIR=./data/self-learning
-SELF_LEARNING_TARGETS=
-SELF_LEARNING_BLACKLIST=
-SELF_LEARNING_INTERVAL_HOURS=6
-SELF_LEARNING_MIN_MESSAGES=30
-SELF_LEARNING_MAX_BATCH=200
-SELF_LEARNING_ENABLE_ML=true
-SELF_LEARNING_MAX_ML_SAMPLE=120
-SELF_LEARNING_TOTAL_AFFECTION_CAP=250
-SELF_LEARNING_MAX_USER_AFFECTION=100
-SELF_LEARNING_DB_TYPE=sqlite
-SELF_LEARNING_DB_FILE=./data/self-learning/self-learning.sqlite
-SELF_LEARNING_MYSQL_URL=
-SELF_LEARNING_POSTGRES_URL=
-
-# ===== 外部插件（可选）=====
-PLUGIN_PATHS=plugins/example-echo-plugin.cjs
+```powershell
+Copy-Item .env.example .env
 ```
 
-### 3. 启动 OneBot 实现
+至少需要填写这些配置：
 
-以 NapCat 为例：
+- `WS_URL`
+- `AI_API_KEY`
+- `AI_BASE_URL`
+- `AI_MODEL`
+- `BOT_QQ`
+
+说明：
+
+- `.env.example` 是推荐起始模板。
+- 运行时最终回退默认值以 `src/types/config.ts` 为准。
+- 示例里常见的 NapCat 地址是 `ws://127.0.0.1:3001`。
+- 如果你完全不设置 `WS_URL`，代码会回退到 `ws://127.0.0.1:8080`。
+- 所以请一定以你自己的 OneBot 实际监听地址为准，不要盲抄端口喵~ ⚠️
+
+### 3. 启动 OneBot
+
+以 NapCat 为例，你需要先确保：
+
+- 已经成功登录要作为机器人的 QQ
+- 已启用正向 WebSocket
+- `WS_URL` 指向的地址确实能连通
+
+### 4. 启动 QQTalker
+
 ```bash
-# 确保 NapCat 开启了正向 WebSocket 服务
-# 默认地址: ws://127.0.0.1:3001
-```
-
-### 4. 运行
-
-```bash
-# 开发模式
 npm run dev
-
-# 生产模式
-npm run build && npm start
 ```
 
-启动成功后访问 **http://localhost:3180** 查看 Dashboard 控制台。
+如果要跑构建产物：
 
-### 4.1 本机自然语音部署（GPT-SoVITS）
+```bash
+npm run build
+npm start
+```
 
-当前仓库已经按以下目录约定完成联调：
+启动后默认访问：
+
+- Dashboard: [http://127.0.0.1:3180](http://127.0.0.1:3180)
+- 日志分析页: [http://127.0.0.1:3180/analyzer](http://127.0.0.1:3180/analyzer)
+
+到这里为止，你已经可以先验证纯文本聊天链路了喵~ ✅
+
+## 🎤 路线二：继续接自然语音（推荐）
+
+如果你想让 QQTalker 发出更自然的角色语音，建议接上：
+
+- `voice-service`
+- `GPT-SoVITS`
+
+### 目录约定
+
+当前仓库默认联调约定如下：
 
 ```text
 CodeBuddyWorkSpace/
@@ -275,187 +133,285 @@ CodeBuddyWorkSpace/
   GPT-SoVITS/
 ```
 
-推荐启动顺序：
+`start-voice-stack.ps1` 和 `npm run start:stack` 都默认你采用这个布局。
+
+### 第一步：安装 `voice-service` 🐍
+
+进入 `voice-service/`：
 
 ```bash
-# 1. 启动 GPT-SoVITS 官方 API
-cd ../GPT-SoVITS
-powershell -ExecutionPolicy Bypass -File start-api-v2.ps1
-
-# 2. 启动 QQTalker voice-service
-cd ../QQTalker/voice-service
-powershell -ExecutionPolicy Bypass -File start-local-service.ps1
-
-# 3. 启动 QQTalker
-cd ..
-npm run dev
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
 ```
 
-本次部署默认使用：
+手动启动：
 
-- `GPT-SoVITS`: `http://127.0.0.1:9880/tts`
-- `voice-service`: `http://127.0.0.1:8765`
-- `QQTalker Dashboard`: `http://127.0.0.1:3180`
-- 默认模型: `preset-yongchutafi`
+```bash
+uvicorn app:app --host 127.0.0.1 --port 8765
+```
 
-如果希望一键拉起上线所需服务，可以直接运行：
+Windows 下也可以直接用：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\start-voice-stack.ps1
+powershell -ExecutionPolicy Bypass -File start-local-service.ps1
 ```
 
-当前上线口径：
+安装好后，建议先检查：
 
-- 默认语音链路固定为 `GPT-SoVITS`
-- `edge-tts` 仅作为保底回退
-- `RVC` 相关脚本与条目保留在仓库中用于历史实验回溯，但不再属于当前上线范围，也不纳入默认启动流程
+- [http://127.0.0.1:8765/health](http://127.0.0.1:8765/health)
 
-已整理好的参考音频位于：
+### 第二步：准备 `GPT-SoVITS` 🎙️
 
-- `data/voice-models/dongxuelian/reference.wav`
-- `data/voice-models/yongchutafi/reference.wav`
+这一部分是基于当前仓库已经验证过的本机联调口径整理的，具体细节仍可能因你的显卡、CUDA、上游版本不同而需要微调。
 
-注意事项：
+推荐流程：
 
-- `GPT-SoVITS` 参考音频要求在 `3~10 秒` 内，当前仓库已统一裁成 `8 秒` 单声道 WAV。
-- Windows 环境下 `jieba_fast` 常见编译失败，仓库已兼容回退到 `jieba`。
-- 若官方 API 首次推理报英文词性依赖问题，当前兼容补丁会自动回退，不再阻塞中文播报链路。
+1. 把官方 `GPT-SoVITS` 放到和 `QQTalker` 同级的目录。
+2. 在 `../GPT-SoVITS` 中准备 Python 3.10 虚拟环境。
+3. 按上游项目安装依赖。
+4. 启动其 API，并确认 `http://127.0.0.1:9880/docs` 可访问。
+5. 在 `voice-service` 侧确保：
 
-### 5. 测试
+```text
+VOICE_MODEL_DIR=../data/voice-models
+VOICE_DEFAULT_BACKEND=gpt-sovits
+VOICE_GPTSOVITS_UPSTREAM=http://127.0.0.1:9880/tts
+```
+
+仓库内已有的 Windows 联调备注：
+
+- `jieba_fast` 构建失败时，可退回普通 `jieba`
+- 首次运行可能缺少 `g2p_en`
+- 若 `onnxruntime` 的 CUDA Provider 报错，但 `torch` 侧 CUDA 正常，主推理链仍可能可用
+
+### 第三步：打开主程序里的 TTS 配置 🔊
+
+在 `.env` 中至少确认这些项：
+
+```env
+TTS_ENABLED=true
+TTS_SERVICE_URL=http://127.0.0.1:8765
+TTS_BACKEND=gpt-sovits
+TTS_MODEL=
+TTS_MODEL_DIR=./data/voice-models
+```
+
+如果你希望机器人只在被 `@` 时附带语音，保留：
+
+```env
+TTS_REPLY_MODE=mention-only
+```
+
+如果你希望连被动插话也尽量带语音，可以改成：
+
+```env
+TTS_REPLY_MODE=all-replies
+```
+
+### 第四步：一键拉起整条语音链路 🚀
+
+命令行方式：
 
 ```bash
-# 单元 / 集成测试
-npm test
+npm run start:stack
+```
 
-# 前端 E2E（基于 Playwright mock dashboard）
+或双击：
+
+```bat
+launch-qqtalker.bat
+```
+
+这两个入口会按顺序尝试启动：
+
+- `GPT-SoVITS`
+- `voice-service`
+- `QQTalker`
+
+注意：
+
+- 它更像“本机联调启动器”，不是通用部署脚本
+- 它默认使用固定目录布局
+- 脚本会检测 `9880/docs`、`8765/health`、`3180/api/status`
+
+### 第五步：语音相关的快速排障 🩺
+
+如果“有文字但没语音”，优先检查：
+
+- `TTS_ENABLED`
+- `TTS_SERVICE_URL`
+- `voice-service` 是否健康
+- `VOICE_GPTSOVITS_UPSTREAM` 是否可达
+- `TTS_MODEL` 是否命中有效模型
+
+如果你还没装 `ffmpeg`，可以先试试：
+
+```powershell
+.\install-ffmpeg.ps1
+```
+
+更多语音链路说明见：
+
+- [`voice-service/README.md`](voice-service/README.md)
+- [`data/voice-models/README.md`](data/voice-models/README.md)
+- [`data/voice-models/training/README.md`](data/voice-models/training/README.md)
+- [`docs/voice-stack.md`](docs/voice-stack.md)
+
+## 🛰️ Astrbot 联动（可选）
+
+QQTalker 已经支持两类 Astrbot 集成能力：
+
+- `/Astrbot` 显式转发
+- 复杂任务自动委托
+
+### 先说清边界
+
+本仓库只负责 **QQTalker 侧接入 Astrbot**。
+
+也就是说：
+
+- 这里会教你怎么配置 `ASTRBOT_QQ`
+- 会教你怎么让 QQTalker 把消息转发给 Astrbot
+- 但 **Astrbot 本体的安装、部署、登录与版本差异** 不在本仓库可控范围内
+
+因此最稳妥的做法是：
+
+1. 先按 Astrbot 上游项目文档完成它自己的安装与登录。
+2. 确保你已经有一个可以被当前 QQ 环境私聊到的 Astrbot QQ 号。
+3. 再回到 QQTalker 侧做接入。
+
+### QQTalker 侧怎么接 Astrbot
+
+在 `.env` 中至少配置：
+
+```env
+ASTRBOT_QQ=123456789
+```
+
+如果你还想打开复杂任务委托，可以继续配置：
+
+```env
+ASTRBOT_ENABLED_COMPLEX_TASKS=true
+ASTRBOT_COMPLEX_TASK_KEYWORDS=分析,总结,规划,排查,设计,方案,roadmap
+ASTRBOT_COMPLEX_TASK_MIN_LENGTH=48
+ASTRBOT_TIMEOUT_MS=45000
+ASTRBOT_FALLBACK_TO_LOCAL=true
+```
+
+其他进阶项：
+
+- `ASTRBOT_COMPLEX_TASK_GROUP_ALLOWLIST`
+- `ASTRBOT_COMPLEX_TASK_GROUP_DENYLIST`
+- `ASTRBOT_COMPLEX_TASK_GROUP_ROUTE_OVERRIDES`
+
+### 群里怎么用
+
+先 `@` 机器人，再输入：
+
+- `/Astrbot`
+  开启或关闭当前群的转发模式
+- `/Astrbot 你好`
+  直接把内容转发给 Astrbot
+
+如果你已经开启复杂任务委托，QQTalker 也会根据关键词、长度和群配置自动判断要不要转发。
+
+更多实现细节见：
+
+- [`docs/core-flow.md`](docs/core-flow.md)
+- [`docs/modules.md`](docs/modules.md)
+
+## 🎛️ Dashboard 控制台
+
+QQTalker 自带 Dashboard，可用来查看：
+
+- 📈 运行状态与统计
+- 📜 实时日志与日志分析
+- 🧠 自学习数据
+- 🔧 运行配置
+- 💻 进程信息
+
+默认地址：
+
+- [http://127.0.0.1:3180](http://127.0.0.1:3180)
+- [http://127.0.0.1:3180/analyzer](http://127.0.0.1:3180/analyzer)
+
+## 💡 常用脚本
+
+- `npm run dev`
+- `npm run build`
+- `npm start`
+- `npm test`
+- `npm run test:e2e`
+- `npm run start:stack`
+- `npm run start:launcher`
+- `npm run voice:training:sync`
+- `npm run voice:download`
+- `npm run voice:clips:suggest`
+- `npm run voice:clips`
+- `npm run voice:transcribe`
+- `npm run voice:manifest`
+- `npm run voice:rvc:import`
+- `npm run voice:eval`
+
+## 💬 常见群内命令
+
+以下命令都需要先 `@` 机器人：
+
+- 基础聊天：`@Claw 你好`
+- 模式切换：`私聊`、`个人模式`、`群聊`、`群模式`
+- 清理会话：`清理`、`重置`
+- 占卜：`抽签`、`塔罗`、`运势`、`占卜`
+- Astrbot：`/Astrbot`、`/Astrbot <消息>`
+- 自学习：`/learning_status`、`/start_learning`、`/stop_learning`、`/force_learning`、`/affection_status`、`/set_mood <情绪>`、`/scene_status`
+
+## 🧩 插件与自学习
+
+插件现在同时支持两条接入路线：
+
+- 兼容旧方式：`PLUGIN_PATHS` 加载 CommonJS 模块
+- 新平台方式：通过 Dashboard 的“插件中心”安装和管理 `local` / `npm` / `git` 来源插件
+
+平台能力包括：
+
+- 消息钩子
+- Prompt 上下文注入
+- 群命令处理
+- Dashboard API 扩展
+- 插件配置 Schema
+- 插件启用 / 停用 / 卸载 / 更新
+- 异构桥接入口（为 AstrBot 之类外部生态预留）
+
+自学习默认使用 SQLite 文件型存储，可切换到 MySQL 或 PostgreSQL。更详细的接口和数据说明见 [`docs/data-and-plugin.md`](docs/data-and-plugin.md)。
+
+## 📚 开发文档导航
+
+- [`docs/README.md`](docs/README.md)
+- [`docs/architecture.md`](docs/architecture.md)
+- [`docs/setup-and-run.md`](docs/setup-and-run.md)
+- [`docs/core-flow.md`](docs/core-flow.md)
+- [`docs/modules.md`](docs/modules.md)
+- [`docs/voice-stack.md`](docs/voice-stack.md)
+- [`docs/data-and-plugin.md`](docs/data-and-plugin.md)
+
+## 📎 其他项目文档
+
+- [`voice-service/README.md`](voice-service/README.md)
+- [`data/voice-models/README.md`](data/voice-models/README.md)
+- [`data/voice-models/training/README.md`](data/voice-models/training/README.md)
+- [`dashboard-assets/ARCHITECTURE.md`](dashboard-assets/ARCHITECTURE.md)
+
+## 🧪 测试
+
+```bash
+npm test
 npm run test:e2e
 ```
 
-本次 GPT 上线链路额外完成了如下运行验证：
+说明：
 
-- `http://127.0.0.1:9880/tts` 直连合成成功，返回 `540204` 字节 WAV
-- `http://127.0.0.1:8765/preview` 代理合成成功，返回 `gpt-sovits / preset-dongxuelian`
-- `http://127.0.0.1:3180/api/voice/preview` QQTalker 预览成功，返回 Base64 音频
-- 真实 `at-reply` 遥测命中 `gpt-sovits / local-http`，`fallbackRate = 0`
-
----
-
-## 项目结构
-
-```
-src/
-├── index.ts                 # 主入口
-├── logger.ts                # 日志配置
-├── plugins/                 # 插件运行时与内置自学习插件
-├── storage/                 # SQLite/MySQL/PostgreSQL 适配层
-├── types/
-│   ├── config.ts            # 配置类型和验证
-│   └── onebot.ts            # OneBot协议类型定义 + 工具函数
-├── services/
-│   ├── onebot-client.ts     # OneBot WebSocket客户端 + 通知事件
-│   ├── codebuddy-client.ts  # AI API客户端 + System Prompt
-│   ├── session-manager.ts   # 双模式会话管理器
-│   ├── tts-service.ts       # TTS语音服务 (edge-tts)
-│   ├── stt-service.ts       # STT语音识别服务 (SenseVoice/Whisper)
-│   ├── vision-service.ts    # AI图片识别服务 (Vision)
-│   ├── divination-service.ts # 占卜服务（灵签/塔罗/运势）
-│   ├── folk-divination.ts   # 民俗黄历/宜忌
-│   ├── greeting-service.ts  # 定时问候语生成
-│   ├── welcome-service.ts   # 新成员欢迎语
-│   ├── scheduler-service.ts # 定时调度器 + AI插聊
-│   ├── astrbot-relay.ts     # Astrbot转发中继
-│   └── dashboard-service.ts  # HTTP Dashboard 控制台
-└── handlers/
-    └── message-handler.ts   # 消息处理器（核心逻辑）
-```
-
----
-
-## 配置说明
-
-| 变量 | 说明 | 默认值 |
-|------|------|--------|
-| `WS_URL` | OneBot WebSocket地址 | ws://127.0.0.1:8080 |
-| `ACCESS_TOKEN` | OneBot访问令牌 | 空 |
-| `AI_API_KEY` | AI API密钥 | 必填 |
-| `AI_BASE_URL` | API基础URL（OpenAI兼容） | 必填 |
-| `AI_MODEL` | 使用的模型名 | deepseek-chat |
-| `BOT_QQ` | 机器人QQ号 | 必填 |
-| `BOT_NICKNAME` | 机器人昵称（识别文本@） | 空 |
-| `TTS_ENABLED` | 是否启用语音回复 | true |
-| `TTS_VOICE` | TTS音色名称 | zh-CN-XiaoyiNeural |
-| `TTS_SPEED` | TTS语速(1-9) | 4 |
-| `STT_ENABLED` | 是否启用语音识别 | false |
-| `STT_MODEL` | STT模型 | FunAudioLLM/SenseVoiceSmall |
-| `STT_BASE_URL` | STT API地址 | 空(SiliconFlow) |
-| `AT_TRIGGER` | 是否只响应@消息 | true |
-| `GROUP_WHITELIST` | 允许的群号(逗号分隔) | 允许所有群 |
-| `MAX_HISTORY` | 最大历史消息数 | 100 |
-| `SCHEDULE_GROUPS` | 定时任务目标群(逗号分隔) | 所有活跃群 |
-| `ASTRBOT_QQ` | Astrbot QQ号 | 0(禁用) |
-| `LOG_LEVEL` | 日志级别 | info |
-
----
-
-## 常见问题
-
-### Q: 连接失败？
-检查 `.env` 中 `WS_URL` 是否正确，确保 NapCat/OneBot 实现正在运行且 WebSocket 服务已开启。
-
-### Q: 不响应消息？
-1. 确认 `BOT_QQ` 和 `BOT_NICKNAME` 配置正确
-2. 必须在群里 **@机器人** 才能触发回复
-3. 检查 `GROUP_WHITELIST` 是否包含目标群
-
-### Q: 怎么让机器人有记忆？
-默认就是**群聊共享模式**，所有人的对话都在同一个上下文中。Claw 能记住每个人说过的话。
-
-### Q: 不想要语音回复？
-设置 `TTS_ENABLED=false` 即可关闭。
-
-### Q: 语音识别不准确？
-1. 确保配置了正确的 `STT_API_KEY`（SiliconFlow 免费额度足够）
-2. QQ 语音是 SILK 格式，需要 FFmpeg 或 silk-decoder 工具
-3. 运行 `.\install-ffmpeg.ps1` 安装 FFmpeg
-
-### Q: 图片识别不工作？
-当前使用的 AI 模型必须支持 vision 能力（如 gpt-4o、gpt-4-vision）。DeepSeek 等纯文本模型不支持图片输入。
-
-### Q: 如何修改机器人人设？
-编辑 `src/services/codebuddy-client.ts` 中的 `SYSTEM_PROMPT` 变量。
-
-### Q: Dashboard 打不开？
-确认端口 3180 未被占用，启动成功后会打印 `Dashboard 控制台已启动: http://localhost:3180`。
-
----
-
-## 插件开发
-
-可通过 `PLUGIN_PATHS` 加载 CommonJS 插件，仓库内提供了示例文件 `plugins/example-echo-plugin.cjs`。插件可扩展：
-
-- 消息捕获
-- Prompt 上下文注入
-- 群命令处理
-- Dashboard API 路由
-
-## 自学习高级能力
-
-- 默认使用 `SQL.js` 文件型 SQLite，无需本地 C++ 编译链即可运行。
-- 可切换 `SELF_LEARNING_DB_TYPE=mysql|postgres`，并使用 `SELF_LEARNING_MYSQL_URL` / `SELF_LEARNING_POSTGRES_URL` 接入外部数据库。
-- 高级学习周期会生成：
-  - 用户风格画像
-  - 群内黑话候选
-  - 22 类社交关系推断
-  - 38 类对话场景分布
-  - 轻量话题聚类
-  - 记忆图谱摘要
-  - 人格演化建议与审批记录
-- Dashboard 自学习中心新增：
-  - 导出 / 导入学习数据（UTF-8 JSON，兼容 Windows 直接查看）
-  - 单群学习记录清理
-  - 分析快照重建
-  - 自动学习运行态开关与定时策略面板
-  - 关键前端流程 E2E：立即学习、群切换、人格审批
+- `npm test` 主要验证 Node 侧逻辑
+- `npm run test:e2e` 使用 Playwright + mock dashboard server，适合验证 Dashboard 关键交互，不等同于真实服务全链路联调
 
 ## License
 

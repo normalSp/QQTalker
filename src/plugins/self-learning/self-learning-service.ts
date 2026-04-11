@@ -1,4 +1,6 @@
 import { config } from '../../types/config';
+import type { PersonaService } from '../../services/persona-service';
+import { DEFAULT_PERSONA_ID } from '../../services/persona-service';
 import type { PluginCommandContext, PromptHookContext, PromptHookResult } from '../plugin-types';
 import {
   runAdvancedLearningAnalysis,
@@ -83,12 +85,17 @@ function inferRealtimeGoal(text: string): { goalType: string; summary: string } 
 export class SelfLearningService {
   private autoLearningEnabled = true;
   private lastLearningAt = 0;
+  private personas: PersonaService | null = null;
 
   constructor(private readonly store: SelfLearningStore) {}
 
   async initialize(): Promise<void> {
     await this.store.initialize();
     this.autoLearningEnabled = true;
+  }
+
+  bindPersonaService(personas: PersonaService): void {
+    this.personas = personas;
   }
 
   async captureMessage(record: CapturedMessageRecord): Promise<void> {
@@ -113,14 +120,14 @@ export class SelfLearningService {
       this.store.listStylePatterns(context.groupId, context.userId, 8),
       this.store.listSlang(context.groupId, 8),
       this.store.listSocialEdges(context.groupId, context.userId, 8),
-      this.store.getActivePersonaSnapshot(context.groupId),
+      this.store.getActivePersonaSnapshot(context.groupId, context.basePersonaId || DEFAULT_PERSONA_ID),
       this.store.searchMemories(context.groupId, context.userId, topKeywords(context.rawText), 6),
       this.getAdvancedSummary(context.groupId),
     ]);
 
     const sections: string[] = [];
     if (snapshot?.content) {
-      sections.push('当前已批准的人格增强建议如下，请以此增强回复但保持 QQTalker 既有人设。');
+      sections.push('当前已批准的人格增强建议如下，请在当前基础人格上叠加这些群级特征，不要覆盖基础角色身份。');
       sections.push(snapshot.content);
     }
     if (advanced?.summary) {
@@ -265,10 +272,12 @@ export class SelfLearningService {
       throw new Error('No advanced report available for persona review');
     }
     const currentMood = await this.store.getMood(groupId);
+    const basePersonaId = this.personas?.getBasePersonaIdForGroup(groupId) || DEFAULT_PERSONA_ID;
     const reviewSummary = `${actualReport.summary}，主情绪 ${currentMood?.mood || actualReport.moodTrend.primaryMood}，主题簇 ${actualReport.clusters.slice(0, 2).map(item => item.label).join(' / ') || '分散'}`;
-    const personaName = `group-${groupId}`;
+    const personaName = `group-${groupId}-${basePersonaId}`;
     const id = await this.store.createPersonaReview({
       groupId,
+      basePersonaId,
       personaName,
       summary: reviewSummary,
       suggestedPrompt: actualReport.personaPrompt,
@@ -279,6 +288,7 @@ export class SelfLearningService {
     return {
       id,
       groupId,
+      basePersonaId,
       personaName,
       summary: reviewSummary,
       suggestedPrompt: actualReport.personaPrompt,
@@ -293,8 +303,12 @@ export class SelfLearningService {
     if (!review) {
       throw new Error('Review not found');
     }
+    const currentBasePersonaId = this.personas?.getBasePersonaIdForGroup(review.groupId) || DEFAULT_PERSONA_ID;
+    if (review.basePersonaId !== currentBasePersonaId) {
+      throw new Error('该学习增强建议基于旧人格生成，请在当前人格下重新生成后再应用');
+    }
     await this.store.updatePersonaReviewStatus(reviewId, 'approved', Date.now());
-    await this.store.activatePersonaSnapshot(review.groupId, review.personaName, review.suggestedPrompt, reviewId);
+    await this.store.activatePersonaSnapshot(review.groupId, review.basePersonaId, review.personaName, review.suggestedPrompt, reviewId);
   }
 
   async rejectPersonaReview(reviewId: number): Promise<void> {

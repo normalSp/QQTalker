@@ -1,5 +1,6 @@
 import { createDatabaseAdapter } from '../../storage/create-database-adapter';
 import type { DatabaseAdapter } from '../../storage/database-adapter';
+import { DEFAULT_PERSONA_ID } from '../../services/persona-service';
 
 export interface CapturedMessageRecord {
   id?: number;
@@ -83,6 +84,7 @@ export interface MemoryRecord {
 export interface PersonaReviewRecord {
   id?: number;
   groupId: number;
+  basePersonaId: string;
   personaName: string;
   summary: string;
   suggestedPrompt: string;
@@ -110,6 +112,7 @@ export interface AnalysisSnapshotRecord<T = unknown> {
 export interface PersonaSnapshotRecord {
   id?: number;
   groupId: number;
+  basePersonaId: string;
   personaName: string;
   content: string;
   reviewId?: number | null;
@@ -238,6 +241,7 @@ function getSchemaStatements(dialect: DatabaseAdapter['dialect']): string[] {
     `CREATE TABLE IF NOT EXISTS persona_reviews (
       id ${idColumn},
       group_id ${integer} NOT NULL,
+      base_persona_id VARCHAR(120) NOT NULL DEFAULT '${DEFAULT_PERSONA_ID}',
       persona_name ${text} NOT NULL,
       summary ${text} NOT NULL,
       suggested_prompt ${text} NOT NULL,
@@ -248,6 +252,7 @@ function getSchemaStatements(dialect: DatabaseAdapter['dialect']): string[] {
     `CREATE TABLE IF NOT EXISTS persona_snapshots (
       id ${idColumn},
       group_id ${integer} NOT NULL,
+      base_persona_id VARCHAR(120) NOT NULL DEFAULT '${DEFAULT_PERSONA_ID}',
       persona_name ${text} NOT NULL,
       content ${text} NOT NULL,
       review_id ${integer},
@@ -281,10 +286,25 @@ export class SelfLearningStore {
 
   async initialize(): Promise<void> {
     await this.adapter.initialize(getSchemaStatements(this.adapter.dialect));
+    await this.ensurePersonaBaseColumns();
   }
 
   async close(): Promise<void> {
     await this.adapter.close();
+  }
+
+  private async ensurePersonaBaseColumns(): Promise<void> {
+    const statements = [
+      `ALTER TABLE persona_reviews ADD COLUMN base_persona_id VARCHAR(120) NOT NULL DEFAULT '${DEFAULT_PERSONA_ID}'`,
+      `ALTER TABLE persona_snapshots ADD COLUMN base_persona_id VARCHAR(120) NOT NULL DEFAULT '${DEFAULT_PERSONA_ID}'`,
+    ];
+    for (const statement of statements) {
+      try {
+        await this.adapter.run(statement);
+      } catch {
+        // Column may already exist on upgraded databases.
+      }
+    }
   }
 
   async saveCapturedMessage(record: CapturedMessageRecord): Promise<void> {
@@ -575,9 +595,9 @@ export class SelfLearningStore {
 
   async createPersonaReview(record: PersonaReviewRecord): Promise<number> {
     await this.adapter.run(
-      `INSERT INTO persona_reviews (group_id, persona_name, summary, suggested_prompt, status, created_at, approved_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [record.groupId, record.personaName, record.summary, record.suggestedPrompt, record.status, record.createdAt, record.approvedAt || null],
+      `INSERT INTO persona_reviews (group_id, base_persona_id, persona_name, summary, suggested_prompt, status, created_at, approved_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [record.groupId, record.basePersonaId, record.personaName, record.summary, record.suggestedPrompt, record.status, record.createdAt, record.approvedAt || null],
     );
     return (await this.adapter.get<{ id: number }>('SELECT MAX(id) as id FROM persona_reviews'))?.id || 0;
   }
@@ -595,7 +615,7 @@ export class SelfLearningStore {
     }
     params.push(limit);
     return this.adapter.query<PersonaReviewRecord>(
-      `SELECT id, group_id as groupId, persona_name as personaName, summary, suggested_prompt as suggestedPrompt, status, created_at as createdAt, approved_at as approvedAt
+      `SELECT id, group_id as groupId, base_persona_id as basePersonaId, persona_name as personaName, summary, suggested_prompt as suggestedPrompt, status, created_at as createdAt, approved_at as approvedAt
        FROM persona_reviews ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY created_at DESC LIMIT ?`,
       params,
     );
@@ -605,20 +625,20 @@ export class SelfLearningStore {
     await this.adapter.run('UPDATE persona_reviews SET status = ?, approved_at = ? WHERE id = ?', [status, approvedAt || null, reviewId]);
   }
 
-  async activatePersonaSnapshot(groupId: number, personaName: string, content: string, reviewId?: number): Promise<void> {
-    await this.adapter.run('UPDATE persona_snapshots SET is_active = 0 WHERE group_id = ?', [groupId]);
+  async activatePersonaSnapshot(groupId: number, basePersonaId: string, personaName: string, content: string, reviewId?: number): Promise<void> {
+    await this.adapter.run('UPDATE persona_snapshots SET is_active = 0 WHERE group_id = ? AND base_persona_id = ?', [groupId, basePersonaId]);
     await this.adapter.run(
-      `INSERT INTO persona_snapshots (group_id, persona_name, content, review_id, is_active, created_at)
-       VALUES (?, ?, ?, ?, 1, ?)`,
-      [groupId, personaName, content, reviewId || null, Date.now()],
+      `INSERT INTO persona_snapshots (group_id, base_persona_id, persona_name, content, review_id, is_active, created_at)
+       VALUES (?, ?, ?, ?, ?, 1, ?)`,
+      [groupId, basePersonaId, personaName, content, reviewId || null, Date.now()],
     );
   }
 
-  async getActivePersonaSnapshot(groupId: number): Promise<{ personaName: string; content: string } | undefined> {
-    return this.adapter.get<{ personaName: string; content: string }>(
-      `SELECT persona_name as personaName, content FROM persona_snapshots
-       WHERE group_id = ? AND is_active = 1 ORDER BY created_at DESC LIMIT 1`,
-      [groupId],
+  async getActivePersonaSnapshot(groupId: number, basePersonaId: string = DEFAULT_PERSONA_ID): Promise<{ personaName: string; content: string; basePersonaId: string; reviewId?: number | null; createdAt?: number } | undefined> {
+    return this.adapter.get<{ personaName: string; content: string; basePersonaId: string; reviewId?: number | null; createdAt?: number }>(
+      `SELECT persona_name as personaName, content, base_persona_id as basePersonaId, review_id as reviewId, created_at as createdAt FROM persona_snapshots
+       WHERE group_id = ? AND base_persona_id = ? AND is_active = 1 ORDER BY created_at DESC LIMIT 1`,
+      [groupId, basePersonaId],
     );
   }
 
@@ -676,9 +696,9 @@ export class SelfLearningStore {
   async listPersonaSnapshots(groupId?: number): Promise<PersonaSnapshotRecord[]> {
     return this.adapter.query<PersonaSnapshotRecord>(
       groupId
-        ? `SELECT id, group_id as groupId, persona_name as personaName, content, review_id as reviewId, is_active as isActive, created_at as createdAt
+        ? `SELECT id, group_id as groupId, base_persona_id as basePersonaId, persona_name as personaName, content, review_id as reviewId, is_active as isActive, created_at as createdAt
            FROM persona_snapshots WHERE group_id = ? ORDER BY created_at DESC`
-        : `SELECT id, group_id as groupId, persona_name as personaName, content, review_id as reviewId, is_active as isActive, created_at as createdAt
+        : `SELECT id, group_id as groupId, base_persona_id as basePersonaId, persona_name as personaName, content, review_id as reviewId, is_active as isActive, created_at as createdAt
            FROM persona_snapshots ORDER BY group_id ASC, created_at DESC`,
       groupId ? [groupId] : [],
     ).then(rows => rows.map(row => ({ ...row, isActive: Boolean((row as any).isActive) })));
@@ -926,19 +946,19 @@ export class SelfLearningStore {
     }
     for (const record of data.personaReviews || []) {
       await this.adapter.run(
-        `INSERT INTO persona_reviews (group_id, persona_name, summary, suggested_prompt, status, created_at, approved_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [record.groupId, record.personaName, record.summary, record.suggestedPrompt, record.status, record.createdAt, record.approvedAt || null],
+        `INSERT INTO persona_reviews (group_id, base_persona_id, persona_name, summary, suggested_prompt, status, created_at, approved_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [record.groupId, record.basePersonaId || DEFAULT_PERSONA_ID, record.personaName, record.summary, record.suggestedPrompt, record.status, record.createdAt, record.approvedAt || null],
       );
     }
     for (const record of data.personaSnapshots || []) {
       if (record.isActive) {
-        await this.activatePersonaSnapshot(record.groupId, record.personaName, record.content, record.reviewId || undefined);
+        await this.activatePersonaSnapshot(record.groupId, record.basePersonaId || DEFAULT_PERSONA_ID, record.personaName, record.content, record.reviewId || undefined);
       } else {
         await this.adapter.run(
-          `INSERT INTO persona_snapshots (group_id, persona_name, content, review_id, is_active, created_at)
-           VALUES (?, ?, ?, ?, 0, ?)`,
-          [record.groupId, record.personaName, record.content, record.reviewId || null, record.createdAt],
+          `INSERT INTO persona_snapshots (group_id, base_persona_id, persona_name, content, review_id, is_active, created_at)
+           VALUES (?, ?, ?, ?, ?, 0, ?)`,
+          [record.groupId, record.basePersonaId || DEFAULT_PERSONA_ID, record.personaName, record.content, record.reviewId || null, record.createdAt],
         );
       }
     }

@@ -12,6 +12,7 @@ import { setupConsoleAndAnalyzer, setupGlobalShortcuts } from './start-with-cons
 import { PluginManager } from './plugins/plugin-manager';
 import { SelfLearningPlugin } from './plugins/self-learning/self-learning-plugin';
 import { VoiceBroadcastPlugin } from './plugins/voice-broadcast/voice-broadcast-plugin';
+import { PersonaService } from './services/persona-service';
 
 
 
@@ -38,9 +39,12 @@ async function main(): Promise<void> {
   const blockService = new BlockService();
   const dashboard = new DashboardService();
   const pluginManager = new PluginManager();
+  const personas = new PersonaService();
   let scheduler: SchedulerService | undefined;
   dashboard.setOneBotClient(onebotClient);
   dashboard.setBlockService(blockService);
+  dashboard.setPersonaService(personas);
+  dashboard.setPluginManager(pluginManager);
 
   // 创建消息处理器
   const handler = new MessageHandler(
@@ -51,6 +55,7 @@ async function main(): Promise<void> {
 
   // 将 dashboard 注入 handler 用于统计埋点
   handler.setDashboard(dashboard);
+  handler.setPersonaService(personas);
   dashboard.setAstrbotStatusProvider(() => handler.getAstrbotStatus());
   dashboard.setConfigUpdateHandler((updates) => {
     if (Object.keys(updates).some((key) => key.startsWith('ASTRBOT_'))) {
@@ -70,9 +75,9 @@ async function main(): Promise<void> {
     aiClient: codebuddyClient,
     sessions: sessionManager,
     dashboard,
+    personas,
     dataDir: process.cwd(),
   });
-  dashboard.registerRoutes(pluginManager.getDashboardRoutes());
   dashboard.setShutdownHandler(() =>
     shutdown(onebotClient, sessionManager, dashboard, blockService, pluginManager, scheduler)
   );
@@ -120,6 +125,7 @@ async function main(): Promise<void> {
     
     // 将 dashboard 注入 scheduler 用于活跃群统计
     scheduler.setDashboard(dashboard);
+    scheduler.setPersonaService(personas);
     
     scheduler.start(config.scheduleGroups);
 

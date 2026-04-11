@@ -48,6 +48,7 @@ export function createConfigPageController(options) {
     ASTRBOT_COMPLEX_TASK_GROUP_DENYLIST: '明确禁止自动委托复杂任务的群号列表。命中后即使在 allowlist 中也不会自动委托。',
     ASTRBOT_COMPLEX_TASK_GROUP_ROUTE_OVERRIDES: '按群指定更细粒度路由策略，格式如 123456:local-only,234567:force-delegate。',
     ASTRBOT_COMPLEX_TASK_MIN_LENGTH: '复杂任务最小文本长度阈值。第一版会和关键词、结构词一起参与判定。',
+    ASTRBOT_COMPLEX_TASK_MESSAGE_MAX_CHARS: '转发给 AstrBot 的 complex-task 最大消息长度。超出后会自动裁剪上下文和正文，避免 AstrBot 把整段内容当搜索词。',
     ASTRBOT_TIMEOUT_MS: '等待 AstrBot 私聊链路返回的超时时间，超时后可按配置回退到本地处理。',
     ASTRBOT_FALLBACK_TO_LOCAL: '当 AstrBot 转发失败或超时时，是否由 QQTalker 自动接管当前请求。',
     SELF_LEARNING_ENABLED: '是否启用自学习插件，开启后会记录和分析互动数据。',
@@ -72,6 +73,10 @@ export function createConfigPageController(options) {
       title: '接入与身份',
       desc: '集中管理 QQ 接入、接口地址和机器人基础行为。适合首次部署、迁移环境或排查连接问题时查看。'
     },
+    persona: {
+      title: '人格',
+      desc: '维护 QQTalker 的基础人格档案，并按群切换。自学习增强层会叠加在基础人格之上，不直接覆盖这里的设定。'
+    },
     voice: {
       title: '语音链路',
       desc: '配置本地语音服务、角色模型、试听和识别能力。与 GPT-SoVITS、voice-service 的联调主要在这里完成。'
@@ -87,6 +92,11 @@ export function createConfigPageController(options) {
   };
 
   let activeConfigSection = 'access';
+  let selectedPersonaId = '';
+
+  function getSelectedBindingGroupId() {
+    return (document.getElementById('personaBindGroupId').value || '').trim();
+  }
 
   function getActiveSection() {
     return activeConfigSection;
@@ -118,9 +128,405 @@ export function createConfigPageController(options) {
     if (nextSection === 'voice') {
       loadVoicePanel();
       startVoiceTrainingTaskPolling();
+    } else if (nextSection === 'persona') {
+      stopVoiceTrainingTaskPolling();
+      loadPersonas(selectedPersonaId);
     } else {
       stopVoiceTrainingTaskPolling();
     }
+  }
+
+  function splitLines(value) {
+    return String(value || '')
+      .split(/\r?\n/)
+      .map(function(item) { return item.trim(); })
+      .filter(Boolean);
+  }
+
+  function joinLines(value) {
+    return Array.isArray(value) ? value.join('\n') : '';
+  }
+
+  function formatTimeLabel(value) {
+    if (!value) return '暂无';
+    try {
+      return new Date(value).toLocaleString('zh-CN', { hour12: false });
+    } catch (err) {
+      return '暂无';
+    }
+  }
+
+  function escapeHtml(value) {
+    var div = document.createElement('div');
+    div.textContent = String(value == null ? '' : value);
+    return div.innerHTML;
+  }
+
+  function quoteJsArg(value) {
+    return JSON.stringify(String(value == null ? '' : value)).replace(/"/g, '&quot;');
+  }
+
+  function renderPill(text, tone) {
+    var bg = 'rgba(255,255,255,0.08)';
+    var color = 'var(--text-secondary)';
+    var border = 'rgba(255,255,255,0.08)';
+    if (tone === 'success') {
+      bg = 'var(--success-soft)';
+      color = 'var(--success)';
+      border = 'rgba(81, 207, 102, 0.18)';
+    } else if (tone === 'warning') {
+      bg = 'rgba(255, 212, 59, 0.14)';
+      color = 'var(--warning)';
+      border = 'rgba(255, 212, 59, 0.22)';
+    } else if (tone === 'danger') {
+      bg = 'var(--danger-soft)';
+      color = 'var(--danger)';
+      border = 'rgba(255, 107, 107, 0.22)';
+    } else if (tone === 'accent') {
+      bg = 'rgba(116, 192, 252, 0.14)';
+      color = 'var(--accent)';
+      border = 'rgba(116, 192, 252, 0.22)';
+    }
+    return '<span class="voice-status-pill" style="background:' + bg + ';color:' + color + ';border:1px solid ' + border + ';">' + escapeHtml(text) + '</span>';
+  }
+
+  function updatePersonaSummary(personaState) {
+    const statusEl = document.getElementById('personaSummaryStatus');
+    const metaEl = document.getElementById('personaSummaryMeta');
+    if (!statusEl || !metaEl) return;
+    const profileCount = (personaState && personaState.profiles ? personaState.profiles.length : 0);
+    const bindingCount = Object.keys((personaState && personaState.groupBindings) || {}).length;
+    statusEl.textContent = '人格状态：已加载 ' + profileCount + ' 个基础人格';
+    metaEl.textContent = '默认人格：' + ((personaState && personaState.defaultPersonaId) || '未设置') + '，当前群绑定：' + bindingCount + ' 个。切换群人格后，自学习增强层会按当前基础人格重新匹配。';
+  }
+
+  function renderPersonaUsage(personaState) {
+    const panel = document.getElementById('personaUsagePanel');
+    if (!panel) return;
+    const profiles = (personaState && personaState.profiles) || [];
+    const usage = (personaState && personaState.usage) || {};
+    if (!profiles.length) {
+      panel.innerHTML = '<div class="voice-model-panel-title">人格使用情况</div><div class="voice-muted">当前还没有人格配置。</div>';
+      return;
+    }
+    panel.innerHTML = '<div class="voice-model-panel-title">人格使用情况</div>' +
+      profiles.map(function(profile) {
+        var badge = profile.id === personaState.defaultPersonaId ? '<span class="voice-status-pill" style="margin-left:8px;">默认</span>' : '';
+        return '<div class="voice-model-item">' +
+          '<div class="voice-model-item-head"><strong>' + profile.name + '</strong>' + badge + '</div>' +
+          '<div class="voice-muted">ID: ' + profile.id + ' | 绑定群数: ' + (usage[profile.id] || 0) + ' | ' + (profile.enabled ? '启用中' : '已停用') + '</div>' +
+          '<div class="voice-muted" style="margin-top:4px;">' + (profile.summary || '暂无摘要') + '</div>' +
+        '</div>';
+      }).join('');
+  }
+
+  function renderPersonaBindings(personaState) {
+    const panel = document.getElementById('personaBindingsPanel');
+    if (!panel) return;
+    const bindings = (personaState && personaState.groupBindings) || {};
+    const profiles = ((personaState && personaState.profiles) || []).reduce(function(acc, item) {
+      acc[item.id] = item;
+      return acc;
+    }, {});
+    var rows = Object.entries(bindings);
+    if (!rows.length) {
+      panel.innerHTML = '<div class="voice-model-panel-title">当前群绑定</div><div class="voice-muted">暂无群绑定，未绑定的群会回退到默认人格。</div>';
+      return;
+    }
+    panel.innerHTML = '<div class="voice-model-panel-title">当前群绑定</div>' +
+      rows.map(function(entry) {
+        var groupId = entry[0];
+        var personaId = entry[1];
+        var profile = profiles[personaId];
+        var isFocusedGroup = String((state.navigationFocus && state.navigationFocus.personaGroupId) || '') === String(groupId);
+        return '<div class="voice-model-item">' +
+          '<div class="voice-model-item-head"><strong>群 ' + groupId + '</strong>' + (isFocusedGroup ? renderPill('当前定位群', 'accent') : '') + '</div>' +
+          '<div class="voice-muted">基础人格：' + (profile ? profile.name : personaId) + ' (' + personaId + ')</div>' +
+        '</div>';
+      }).join('');
+  }
+
+  function renderPersonaBindingStatus(result, reviews) {
+    const panel = document.getElementById('personaBindingStatusPanel');
+    if (!panel) return;
+    const persona = result && result.persona ? result.persona : null;
+    if (!persona) {
+      panel.innerHTML = '<div class="voice-model-panel-title">当前群人格运行态</div><div class="voice-muted">选择有效群号后，会在这里显示当前基础人格、自学习增强层和待审批建议状态。</div>';
+      return;
+    }
+    var currentBasePersonaId = persona.basePersonaId || '';
+    var focus = state.navigationFocus || {};
+    var isFocusedGroup = String(focus.personaGroupId || '') === String(persona.groupId || '');
+    var currentReviews = (reviews || []).filter(function(item) { return item.basePersonaId === currentBasePersonaId; });
+    var pendingCurrent = currentReviews.filter(function(item) { return item.status === 'pending'; });
+    var approvedCurrent = currentReviews.filter(function(item) { return item.status === 'approved'; });
+    var staleHistory = (reviews || []).filter(function(item) { return item.basePersonaId !== currentBasePersonaId; });
+    var latestPending = pendingCurrent[0] || null;
+    var latestApproved = approvedCurrent[0] || null;
+    var overlayStatus = persona.overlayStatus === 'active'
+      ? renderPill('增强层：已生效', 'success')
+      : persona.overlayStatus === 'stale'
+        ? renderPill('增强层：已过期', 'danger')
+        : renderPill('增强层：未生效', 'warning');
+    var overlayMeta = persona.overlay
+      ? '当前增强层：' + (persona.overlay.personaName || '已批准建议') + '，绑定基础人格 ' + currentBasePersonaId
+      : '当前没有生效中的学习增强层，回复将仅使用基础人格和实时学习信号。';
+    var overlayTime = persona.overlay && persona.overlay.createdAt
+      ? '最近生效时间：' + formatTimeLabel(persona.overlay.createdAt)
+      : latestApproved
+        ? '最近批准时间：' + formatTimeLabel(latestApproved.approvedAt || latestApproved.createdAt)
+        : '最近生效时间：暂无';
+    var pendingTime = latestPending
+      ? '最新待审批：' + formatTimeLabel(latestPending.createdAt)
+      : '最新待审批：暂无';
+    panel.innerHTML =
+      '<div class="voice-model-panel-title">当前群人格运行态</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">' +
+        (isFocusedGroup ? renderPill('当前定位群：' + persona.groupId, 'accent') : '') +
+        renderPill('基础人格：' + (persona.profile && persona.profile.name ? persona.profile.name : currentBasePersonaId), 'accent') +
+        overlayStatus +
+        renderPill('待审批建议：' + pendingCurrent.length, pendingCurrent.length ? 'warning' : 'success') +
+        renderPill('历史旧人格建议：' + staleHistory.length, staleHistory.length ? 'danger' : 'accent') +
+      '</div>' +
+      '<div class="voice-muted" style="margin-bottom:8px;">' + overlayMeta + '</div>' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-bottom:10px;">' +
+        '<div class="voice-model-item" style="margin:0;"><div class="voice-muted">增强层时间轴</div><div style="margin-top:6px;color:var(--text-primary);">' + overlayTime + '</div></div>' +
+        '<div class="voice-model-item" style="margin:0;"><div class="voice-muted">审批队列</div><div style="margin-top:6px;color:var(--text-primary);">' + pendingTime + '</div></div>' +
+      '</div>' +
+      '<div class="voice-muted" style="margin-bottom:8px;">已审批并匹配当前人格的建议：' + approvedCurrent.length + ' 条；切换基础人格后，旧人格下的建议不会直接生效。</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">' +
+        '<button class="analyzer-btn" style="padding:6px 12px;border-radius:8px;" onclick="openSelfLearningForGroup(' + Number(persona.groupId || 0) + ', ' + (latestPending ? Number(latestPending.id || 0) : (persona.overlay && persona.overlay.reviewId != null ? Number(persona.overlay.reviewId) : 'null')) + ', ' + quoteJsArg(currentBasePersonaId) + ')">去自学习页查看建议</button>' +
+      '</div>' +
+      (
+        currentReviews.length
+          ? currentReviews.slice(0, 5).map(function(item) {
+              var itemTone = item.status === 'approved' ? 'success' : item.status === 'rejected' ? 'danger' : 'warning';
+              var isFocusedReview = Number(focus.personaReviewId || 0) > 0 && Number(item.id || 0) === Number(focus.personaReviewId || 0);
+              return '<div class="voice-model-item">' +
+                '<div class="voice-model-item-head"><strong>' + (item.personaName || ('review-' + item.id)) + '</strong></div>' +
+                '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">' +
+                  renderPill('状态：' + item.status, itemTone) +
+                  renderPill('基础人格：' + item.basePersonaId, 'accent') +
+                  (isFocusedReview ? renderPill('当前定位 review', 'accent') : '') +
+                '</div>' +
+                '<div class="voice-muted" style="margin-top:6px;">生成时间：' + formatTimeLabel(item.createdAt) + (item.approvedAt ? ' | 批准时间：' + formatTimeLabel(item.approvedAt) : '') + '</div>' +
+                '<div class="voice-muted" style="margin-top:4px;">' + (item.summary || '无摘要') + '</div>' +
+              '</div>';
+            }).join('')
+          : '<div class="voice-muted">当前基础人格下还没有学习建议记录。</div>'
+      );
+  }
+
+  async function refreshPersonaBindingStatus() {
+    var groupId = getSelectedBindingGroupId();
+    if (!groupId) {
+      renderPersonaBindingStatus(null, []);
+      return;
+    }
+    const resolved = await dashboardApi.resolvePersona(groupId);
+    const reviewRes = await dashboardApi.getSelfLearningReviews(groupId);
+    renderPersonaBindingStatus(resolved, reviewRes && reviewRes.items ? reviewRes.items : []);
+  }
+
+  function fillPersonaSelects(personaState) {
+    const profiles = (personaState && personaState.profiles) || [];
+    const select = document.getElementById('personaSelect');
+    const bindSelect = document.getElementById('personaBindSelect');
+    var options = profiles.map(function(profile) {
+      return '<option value="' + profile.id + '">' + profile.name + ' (' + profile.id + ')</option>';
+    }).join('');
+    if (select) {
+      select.innerHTML = options || '<option value="">暂无人格</option>';
+      select.onchange = function() {
+        selectPersona(select.value);
+      };
+    }
+    if (bindSelect) {
+      bindSelect.innerHTML = options || '<option value="">暂无人格</option>';
+    }
+  }
+
+  function fillPersonaForm(profile, personaState) {
+    const idEl = document.getElementById('personaIdInput');
+    const nameEl = document.getElementById('personaNameInput');
+    const enabledEl = document.getElementById('personaEnabledToggle');
+    const summaryEl = document.getElementById('personaSummaryInput');
+    const ttsEl = document.getElementById('personaTtsCharacterInput');
+    const rulesEl = document.getElementById('personaReplyRulesInput');
+    const catchEl = document.getElementById('personaCatchphrasesInput');
+    const systemEl = document.getElementById('personaSystemPromptInput');
+    const relayEl = document.getElementById('personaRelayPromptInput');
+    if (!idEl || !nameEl || !enabledEl || !summaryEl || !ttsEl || !rulesEl || !catchEl || !systemEl || !relayEl) return;
+    if (!profile) {
+      idEl.value = '';
+      idEl.readOnly = false;
+      nameEl.value = '';
+      enabledEl.className = 'config-toggle on';
+      summaryEl.value = '';
+      ttsEl.value = '';
+      rulesEl.value = '';
+      catchEl.value = '';
+      systemEl.value = '';
+      relayEl.value = '';
+      return;
+    }
+    selectedPersonaId = profile.id;
+    if (document.getElementById('personaSelect')) {
+      document.getElementById('personaSelect').value = profile.id;
+    }
+    if (document.getElementById('personaBindSelect')) {
+      document.getElementById('personaBindSelect').value = profile.id;
+    }
+    idEl.value = profile.id;
+    idEl.readOnly = !!(personaState && personaState.profiles && personaState.profiles.some(function(item) { return item.id === profile.id; }));
+    nameEl.value = profile.name || '';
+    enabledEl.className = 'config-toggle' + (profile.enabled ? ' on' : '');
+    summaryEl.value = profile.summary || '';
+    ttsEl.value = profile.ttsCharacter || '';
+    rulesEl.value = joinLines(profile.replyRules);
+    catchEl.value = joinLines(profile.catchphrases);
+    systemEl.value = profile.systemPrompt || '';
+    relayEl.value = profile.relayPrompt || '';
+  }
+
+  function prepareNewPersona() {
+    selectedPersonaId = '';
+    fillPersonaForm(null, null);
+    toast('已切换到新建人格表单', 'info');
+  }
+
+  function selectPersona(personaId) {
+    const personaState = state.personas || {};
+    const profiles = personaState.profiles || [];
+    const profile = profiles.find(function(item) { return item.id === personaId; }) || null;
+    if (!profile) {
+      prepareNewPersona();
+      return;
+    }
+    fillPersonaForm(profile, personaState);
+  }
+
+  function collectPersonaForm() {
+    return {
+      id: (document.getElementById('personaIdInput').value || '').trim(),
+      name: (document.getElementById('personaNameInput').value || '').trim(),
+      enabled: document.getElementById('personaEnabledToggle').classList.contains('on'),
+      summary: (document.getElementById('personaSummaryInput').value || '').trim(),
+      ttsCharacter: (document.getElementById('personaTtsCharacterInput').value || '').trim(),
+      replyRules: splitLines(document.getElementById('personaReplyRulesInput').value),
+      catchphrases: splitLines(document.getElementById('personaCatchphrasesInput').value),
+      systemPrompt: (document.getElementById('personaSystemPromptInput').value || '').trim(),
+      relayPrompt: (document.getElementById('personaRelayPromptInput').value || '').trim(),
+    };
+  }
+
+  async function loadPersonas(preferredPersonaId) {
+    const personaState = await dashboardApi.getPersonas();
+    state.personas = personaState || { profiles: [], groupBindings: {}, usage: {}, defaultPersonaId: '' };
+    fillPersonaSelects(state.personas);
+    renderPersonaUsage(state.personas);
+    renderPersonaBindings(state.personas);
+    updatePersonaSummary(state.personas);
+    var nextPersonaId = preferredPersonaId || selectedPersonaId || state.personas.defaultPersonaId || ((state.personas.profiles || [])[0] || {}).id || '';
+    if (nextPersonaId) {
+      selectPersona(nextPersonaId);
+    } else {
+      prepareNewPersona();
+    }
+    await refreshPersonaBindingStatus();
+  }
+
+  async function savePersonaProfile() {
+    const payload = collectPersonaForm();
+    if (!payload.name || !payload.systemPrompt) {
+      toast('人格名称和基础提示词不能为空', 'error');
+      return;
+    }
+    const exists = ((state.personas && state.personas.profiles) || []).some(function(item) {
+      return item.id === payload.id;
+    });
+    const result = exists
+      ? await dashboardApi.updatePersonaProfile(payload)
+      : await dashboardApi.createPersonaProfile(payload);
+    if (!result || result.error) {
+      toast((result && result.error) || '保存人格失败', 'error');
+      return;
+    }
+    state.personas = result.state || state.personas;
+    await loadPersonas((result.profile && result.profile.id) || payload.id);
+    toast('人格已保存', 'success');
+  }
+
+  async function setDefaultPersonaProfile() {
+    const personaId = (document.getElementById('personaIdInput').value || '').trim();
+    if (!personaId) {
+      toast('请先选择一个人格', 'error');
+      return;
+    }
+    const result = await dashboardApi.setDefaultPersona(personaId);
+    if (!result || result.error) {
+      toast((result && result.error) || '设置默认人格失败', 'error');
+      return;
+    }
+    state.personas = result.state || state.personas;
+    await loadPersonas(personaId);
+    toast('默认人格已更新', 'success');
+  }
+
+  async function deletePersonaProfile() {
+    const personaId = (document.getElementById('personaIdInput').value || '').trim();
+    if (!personaId) {
+      toast('请先选择一个人格', 'error');
+      return;
+    }
+    if (!window.confirm('确认删除人格 ' + personaId + ' 吗？')) return;
+    const result = await dashboardApi.deletePersonaProfile(personaId);
+    if (!result || result.error) {
+      toast((result && result.error) || '删除人格失败', 'error');
+      return;
+    }
+    state.personas = result.state || state.personas;
+    await loadPersonas();
+    toast('人格已删除', 'success');
+  }
+
+  async function bindGroupPersona() {
+    const groupId = (document.getElementById('personaBindGroupId').value || '').trim();
+    const personaId = (document.getElementById('personaBindSelect').value || '').trim();
+    if (!groupId || !personaId) {
+      toast('请先选择群号和人格', 'error');
+      return;
+    }
+    const result = await dashboardApi.bindGroupPersona(groupId, personaId);
+    if (!result || result.error) {
+      toast((result && result.error) || '群人格绑定失败', 'error');
+      return;
+    }
+    state.personas = result.state || state.personas;
+    renderPersonaBindings(state.personas);
+    renderPersonaUsage(state.personas);
+    updatePersonaSummary(state.personas);
+    await refreshPersonaBindingStatus();
+    toast('群人格绑定已生效', 'success');
+  }
+
+  async function unbindGroupPersona() {
+    const groupId = (document.getElementById('personaBindGroupId').value || '').trim();
+    if (!groupId) {
+      toast('请先输入群号', 'error');
+      return;
+    }
+    const result = await dashboardApi.unbindGroupPersona(groupId);
+    if (!result || result.error) {
+      toast((result && result.error) || '解除群人格绑定失败', 'error');
+      return;
+    }
+    state.personas = result.state || state.personas;
+    renderPersonaBindings(state.personas);
+    renderPersonaUsage(state.personas);
+    updatePersonaSummary(state.personas);
+    await refreshPersonaBindingStatus();
+    toast('群人格绑定已解除', 'success');
   }
 
   async function loadConfig() {
@@ -148,6 +554,7 @@ export function createConfigPageController(options) {
       astrbotComplexTaskGroupDenylist: 'cfg-astrbotComplexTaskGroupDenylist',
       astrbotComplexTaskGroupRouteOverrides: 'cfg-astrbotComplexTaskGroupRouteOverrides',
       astrbotComplexTaskMinLength: 'cfg-astrbotComplexTaskMinLength',
+      astrbotComplexTaskMessageMaxChars: 'cfg-astrbotComplexTaskMessageMaxChars',
       astrbotTimeoutMs: 'cfg-astrbotTimeoutMs',
       selfLearningDataDir: 'cfg-selfLearningDataDir',
       selfLearningTargets: 'cfg-selfLearningTargets',
@@ -192,6 +599,7 @@ export function createConfigPageController(options) {
     renderVoiceBackends(state.voice.backends || []);
     renderVoiceModels(state.voice.models || []);
     updateAstrbotComplexTaskStatus(status && status.astrbot ? status.astrbot : null);
+    await loadPersonas(selectedPersonaId);
     toast('配置已加载', 'success');
   }
 
@@ -201,6 +609,11 @@ export function createConfigPageController(options) {
         setConfigSection(button.dataset.configSection);
       });
     });
+    var groupInput = document.getElementById('personaBindGroupId');
+    if (groupInput) {
+      groupInput.addEventListener('change', refreshPersonaBindingStatus);
+      groupInput.addEventListener('blur', refreshPersonaBindingStatus);
+    }
   }
 
   async function saveConfig() {
@@ -226,6 +639,7 @@ export function createConfigPageController(options) {
       ASTRBOT_COMPLEX_TASK_GROUP_DENYLIST: 'cfg-astrbotComplexTaskGroupDenylist',
       ASTRBOT_COMPLEX_TASK_GROUP_ROUTE_OVERRIDES: 'cfg-astrbotComplexTaskGroupRouteOverrides',
       ASTRBOT_COMPLEX_TASK_MIN_LENGTH: 'cfg-astrbotComplexTaskMinLength',
+      ASTRBOT_COMPLEX_TASK_MESSAGE_MAX_CHARS: 'cfg-astrbotComplexTaskMessageMaxChars',
       ASTRBOT_TIMEOUT_MS: 'cfg-astrbotTimeoutMs',
       SELF_LEARNING_DATA_DIR: 'cfg-selfLearningDataDir',
       SELF_LEARNING_TARGETS: 'cfg-selfLearningTargets',
@@ -276,6 +690,14 @@ export function createConfigPageController(options) {
     applyConfigFieldMeta,
     setConfigSection,
     loadConfig,
+    loadPersonas,
+    prepareNewPersona,
+    savePersonaProfile,
+    setDefaultPersonaProfile,
+    deletePersonaProfile,
+    bindGroupPersona,
+    unbindGroupPersona,
+    refreshPersonaBindingStatus,
     saveConfig,
     bindTabs,
     getActiveSection,

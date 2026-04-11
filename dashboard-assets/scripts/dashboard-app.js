@@ -7,6 +7,7 @@ import { addLogEntry as appendLogEntry, bindLogFilter, clearLogViewer as clearLo
 import { createDashboardPageController } from './pages/dashboard-page.js';
 import { createProcessPageController } from './pages/process-page.js';
 import { createConfigPageController } from './pages/config-page.js';
+import { createPluginCenterPageController } from './pages/plugin-center-page.js';
 
 // ========== 3D Tilt Effect for Stat Cards ==========
 (function init3DTilt() {
@@ -138,7 +139,15 @@ window.addEventListener('load', function() {
   if (!app) return;
 
   // First do initial data load, then animate
-  refreshAll().then(function() {
+  refreshAll().then(async function() {
+    if (window.location.pathname && window.location.pathname.indexOf('/plugins/') === 0) {
+      var opened = await pluginCenterPage.openPluginPageByPath(window.location.pathname);
+      if (opened) {
+        switchPage('pluginview');
+      }
+    } else if (window.location.hash === '#plugins') {
+      switchPage('plugins');
+    }
     // Main app fade in
     gsap.to(app, { opacity: 1, duration: 0.6, ease: 'power2.out' });
 
@@ -179,6 +188,38 @@ function fmtTime(ts) {
   try { return new Date(ts).toLocaleString('zh-CN', { hour12: false }); }
   catch (e) { return '未执行'; }
 }
+function renderStatusBadge(text, tone) {
+  var bg = 'rgba(255,255,255,0.08)';
+  var color = 'var(--text-secondary)';
+  var border = 'rgba(255,255,255,0.08)';
+  if (tone === 'success') {
+    bg = 'var(--success-soft)';
+    color = 'var(--success)';
+    border = 'rgba(81, 207, 102, 0.18)';
+  } else if (tone === 'warning') {
+    bg = 'rgba(255, 212, 59, 0.14)';
+    color = 'var(--warning)';
+    border = 'rgba(255, 212, 59, 0.22)';
+  } else if (tone === 'danger') {
+    bg = 'var(--danger-soft)';
+    color = 'var(--danger)';
+    border = 'rgba(255, 107, 107, 0.22)';
+  } else if (tone === 'accent') {
+    bg = 'rgba(116, 192, 252, 0.14)';
+    color = 'var(--accent)';
+    border = 'rgba(116, 192, 252, 0.22)';
+  }
+  return '<span class="voice-status-pill" style="background:' + bg + ';color:' + color + ';border:1px solid ' + border + ';">' + esc(text) + '</span>';
+}
+function personaDisplayName(personaId) {
+  var profiles = (state.personas && state.personas.profiles) || [];
+  var match = profiles.find(function(item) { return item.id === personaId; });
+  if (!personaId) return '未指定';
+  return match && match.name ? (match.name + ' (' + personaId + ')') : String(personaId);
+}
+function quoteJsString(value) {
+  return JSON.stringify(String(value == null ? '' : value)).replace(/"/g, '&quot;');
+}
 function slCurrentGroup() {
   return document.getElementById('slGroupSelect').value || state.selfLearning.groupId || '';
 }
@@ -213,9 +254,25 @@ function toast(msg, type) {
 }
 
 // ========== Navigation with animated transitions ==========
+function syncDashboardLocation(page) {
+  if (page === 'pluginview') return;
+  var target = '/';
+  if (page === 'analyzer') {
+    target = '/analyzer';
+  } else if (page === 'plugins') {
+    target = '/#plugins';
+  }
+  if (window.location.pathname + window.location.hash !== target) {
+    window.history.replaceState({}, '', target);
+  }
+}
+
 function switchPage(page) {
+  syncDashboardLocation(page);
   return switchDashboardPage(page, {
     onSelfLearning: function() { loadSelfLearningPanel(false); },
+    onPlugins: function() { pluginCenterPage.loadPlugins(); },
+    onPluginView: function() {},
     onConfig: function() { applyConfigFieldMeta(); loadConfig(); setConfigSection(configPage.getActiveSection()); },
     onProcess: renderProcess,
     onAnalytics: initAnalyticsCharts,
@@ -285,6 +342,13 @@ bindLogFilter({ state, runtime, esc });
 
 // ========== Config Management ==========
 let voiceTrainingTaskPoller = null;
+const pluginCenterPage = createPluginCenterPageController({
+  state,
+  dashboardApi,
+  toast,
+});
+pluginCenterPage.bindInstallForm();
+
 const configPage = createConfigPageController({
   state,
   dashboardApi,
@@ -301,8 +365,52 @@ const configPage = createConfigPageController({
 const applyConfigFieldMeta = configPage.applyConfigFieldMeta;
 const setConfigSection = configPage.setConfigSection;
 const loadConfig = configPage.loadConfig;
+const loadPersonas = configPage.loadPersonas;
+const prepareNewPersona = configPage.prepareNewPersona;
+const savePersonaProfile = configPage.savePersonaProfile;
+const setDefaultPersonaProfile = configPage.setDefaultPersonaProfile;
+const deletePersonaProfile = configPage.deletePersonaProfile;
+const bindGroupPersona = configPage.bindGroupPersona;
+const unbindGroupPersona = configPage.unbindGroupPersona;
 const saveConfig = configPage.saveConfig;
 configPage.bindTabs();
+
+async function openPersonaConfigForGroup(groupId, personaId, reviewId) {
+  state.navigationFocus.personaGroupId = String(groupId || '');
+  state.navigationFocus.personaPersonaId = String(personaId || '');
+  state.navigationFocus.personaReviewId = reviewId == null ? null : Number(reviewId);
+  await switchPage('config');
+  setConfigSection('persona');
+  await loadPersonas(personaId || '');
+  var groupInput = document.getElementById('personaBindGroupId');
+  if (groupInput && groupId) {
+    groupInput.value = String(groupId);
+    groupInput.dispatchEvent(new Event('change'));
+  }
+  var bindSelect = document.getElementById('personaBindSelect');
+  if (bindSelect && personaId) bindSelect.value = String(personaId);
+  var personaSelect = document.getElementById('personaSelect');
+  if (personaSelect && personaId) {
+    personaSelect.value = String(personaId);
+    personaSelect.dispatchEvent(new Event('change'));
+  }
+}
+
+async function openSelfLearningForGroup(groupId, reviewId, personaId) {
+  state.navigationFocus.selfLearningGroupId = String(groupId || '');
+  state.navigationFocus.selfLearningPersonaId = String(personaId || '');
+  state.navigationFocus.selfLearningReviewId = reviewId == null ? null : Number(reviewId);
+  await switchPage('selflearning');
+  state.selfLearning.groupId = String(groupId || '');
+  var select = document.getElementById('slGroupSelect');
+  if (select && groupId) {
+    if ([].slice.call(select.options || []).every(function(option) { return option.value !== String(groupId); })) {
+      select.innerHTML += '<option value="' + esc(String(groupId)) + '">' + esc(String(groupId)) + '</option>';
+    }
+    select.value = String(groupId);
+  }
+  await loadSelfLearningPanel(false);
+}
 
 function getAstrbotFilteredEvents(snapshot) {
   const statusFilter = (document.getElementById('astrbotEventFilterStatus') || {}).value || 'all';
@@ -339,7 +447,9 @@ function updateAstrbotComplexTaskStatus(snapshot) {
     }
     return;
   }
-  const enabled = document.getElementById('cfg-astrbotEnabledComplexTasks')?.classList.contains('on');
+  const enabled = snapshot.complexTaskEnabled !== undefined
+    ? !!snapshot.complexTaskEnabled
+    : document.getElementById('cfg-astrbotEnabledComplexTasks')?.classList.contains('on');
   pill.textContent = enabled ? '复杂任务委托：已启用' : '复杂任务委托：待开启';
   pill.className = 'voice-status-pill ' + (enabled ? 'ok' : 'error');
   meta.textContent =
@@ -351,11 +461,14 @@ function updateAstrbotComplexTaskStatus(snapshot) {
     const events = getAstrbotFilteredEvents(snapshot);
     const decisionCounts = snapshot.decisionCounts || {};
     const lastEvent = snapshot.lastEvent || null;
+    const minLength = snapshot.complexTaskMinLength || 48;
+    const messageMaxChars = snapshot.complexTaskMessageMaxChars || 360;
     const topReasons = Object.entries(decisionCounts).slice(0, 6).map(function(entry) {
       return entry[0] + ':' + entry[1];
     }).join(' / ');
     detail.innerHTML = '<div class="voice-model-panel-title">AstrBot 联动详情</div>'
       + '<div class="voice-model-list">'
+      + '<div><strong>当前阈值</strong>：最小复杂长度 ' + esc(String(minLength)) + ' 字 / 最大转发长度 ' + esc(String(messageMaxChars)) + ' 字</div>'
       + '<div><strong>激活转发群</strong>：' + esc((snapshot.activeGroups || []).join(', ') || '无') + '</div>'
       + '<div><strong>最近匹配关键词</strong>：' + esc((snapshot.lastMatchedKeywords || []).join(', ') || '无') + '</div>'
       + '<div><strong>最近决策</strong>：' + esc(lastEvent ? ((lastEvent.status || '-') + ' / ' + (lastEvent.reason || '-') + ' / 群' + (lastEvent.groupId || '-')) : '暂无') + '</div>'
@@ -1179,11 +1292,13 @@ function renderLearningControlPanels() {
 }
 
 async function loadSelfLearningPanel(showToast) {
-  const [overviewData, strategyData, status] = await Promise.all([
+  const [overviewData, strategyData, status, personaState] = await Promise.all([
     api('/api/self-learning/overview'),
     api('/api/self-learning/strategy'),
     api('/api/status'),
+    dashboardApi.getPersonas(),
   ]);
+  if (personaState && personaState.profiles) state.personas = personaState;
   state.selfLearning.strategy = strategyData || null;
   if (!overviewData || !overviewData.overview) {
     renderLearningControlPanels();
@@ -1198,6 +1313,7 @@ async function loadSelfLearningPanel(showToast) {
     document.getElementById('slAdvancedSummaryPanel').innerHTML = renderSimpleEmpty('无可用数据');
     document.getElementById('slReviewsPanel').innerHTML = renderSimpleEmpty('无可用数据');
     document.getElementById('slRunsPanel').innerHTML = renderSimpleEmpty('无可用数据');
+    state.selfLearning.currentResolvedPersona = null;
     return;
   }
 
@@ -1229,11 +1345,12 @@ async function loadSelfLearningPanel(showToast) {
     document.getElementById('slAdvancedSummaryPanel').innerHTML = renderSimpleEmpty('请先选择或激活一个群');
     document.getElementById('slReviewsPanel').innerHTML = renderSimpleEmpty('请先选择或激活一个群');
     document.getElementById('slRunsPanel').innerHTML = renderSimpleEmpty('请先选择或激活一个群');
+    state.selfLearning.currentResolvedPersona = null;
     return;
   }
 
   const query = '?groupId=' + encodeURIComponent(current);
-  const [styles, slang, social, affection, mood, goals, memories, reviews, advancedSummary, clusters, scenes, memoryGraph, runs] = await Promise.all([
+  const [styles, slang, social, affection, mood, goals, memories, reviews, advancedSummary, clusters, scenes, memoryGraph, runs, resolvedPersona] = await Promise.all([
     api('/api/self-learning/styles' + query),
     api('/api/self-learning/slang' + query),
     api('/api/self-learning/social' + query),
@@ -1247,6 +1364,7 @@ async function loadSelfLearningPanel(showToast) {
     api('/api/self-learning/scene-map' + query),
     api('/api/self-learning/memory-graph' + query),
     api('/api/self-learning/learning-runs' + query),
+    dashboardApi.resolvePersona(current),
   ]);
 
   state.selfLearning.styles = styles.items || [];
@@ -1262,6 +1380,7 @@ async function loadSelfLearningPanel(showToast) {
   state.selfLearning.scenes = scenes.items || [];
   state.selfLearning.memoryGraph = memoryGraph.item || { nodes: [], edges: [] };
   state.selfLearning.runs = runs.items || [];
+  state.selfLearning.currentResolvedPersona = resolvedPersona && resolvedPersona.persona ? resolvedPersona.persona : null;
 
   document.getElementById('slStylesPanel').innerHTML = renderSelfLearningList(state.selfLearning.styles.slice(0, 10), item =>
     '<div style="padding:12px;border:1px solid var(--border-color);border-radius:12px;background:rgba(255,255,255,0.02);">' +
@@ -1352,17 +1471,46 @@ async function loadSelfLearningPanel(showToast) {
       '</div>' +
     '</div>';
 
-  document.getElementById('slReviewsPanel').innerHTML = renderSelfLearningList(state.selfLearning.reviews.slice(0, 10), item =>
-    '<div data-testid="sl-review-card" style="padding:14px;border:1px solid var(--border-color);border-radius:14px;background:rgba(255,255,255,0.02);">' +
-      '<div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;"><div><strong>' + esc(item.personaName || '') + '</strong><div style="margin-top:4px;font-size:12px;color:var(--text-muted);">状态：' + esc(item.status || '') + '</div></div>' +
-      '<div style="display:flex;gap:8px;align-items:center;">' +
-        '<button class="analyzer-btn" data-testid="sl-approve-review-' + Number(item.id || 0) + '" style="padding:6px 12px;border-radius:8px;" onclick="approvePersonaReview(' + Number(item.id || 0) + ')" ' + (item.status !== 'pending' ? 'disabled' : '') + '>批准</button>' +
-        '<button class="analyzer-btn" data-testid="sl-reject-review-' + Number(item.id || 0) + '" style="padding:6px 12px;border-radius:8px;background:var(--danger);color:#fff;border:none;" onclick="rejectPersonaReview(' + Number(item.id || 0) + ')" ' + (item.status !== 'pending' ? 'disabled' : '') + '>驳回</button>' +
-      '</div></div>' +
-      '<div style="margin-top:10px;font-size:13px;color:var(--text-secondary);line-height:1.7;">' + esc(item.summary || '') + '</div>' +
-      '<pre style="margin-top:10px;white-space:pre-wrap;word-break:break-word;background:rgba(0,0,0,0.18);padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.05);color:var(--text-primary);font-size:12px;line-height:1.6;">' + esc(item.suggestedPrompt || '') + '</pre>' +
-    '</div>'
-  );
+  var currentPersona = state.selfLearning.currentResolvedPersona;
+  var focus = state.navigationFocus || {};
+  var isFocusedGroup = String(focus.selfLearningGroupId || '') === String(current || '');
+  var reviewHint = currentPersona
+    ? '<div style="margin-bottom:14px;padding:12px 14px;border:' + (isFocusedGroup ? '2px solid rgba(116,192,252,0.55)' : '1px solid rgba(116,192,252,0.18)') + ';border-radius:12px;background:' + (isFocusedGroup ? 'rgba(116,192,252,0.14)' : 'rgba(116,192,252,0.08)') + ';display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;">'
+      + '<div><div style="font-size:12px;color:var(--text-muted);">当前群基础人格</div><div style="margin-top:4px;font-size:14px;color:var(--text-primary);font-weight:600;">' + esc(personaDisplayName(currentPersona.basePersonaId)) + '</div></div>'
+      + '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'
+      + (isFocusedGroup ? renderStatusBadge('当前定位群', 'accent') : '')
+      + '<button class="analyzer-btn" style="padding:6px 12px;border-radius:8px;" onclick="openPersonaConfigForGroup(' + Number(current) + ', ' + quoteJsString(currentPersona.basePersonaId || '') + ', ' + (currentPersona.overlay && currentPersona.overlay.reviewId != null ? Number(currentPersona.overlay.reviewId) : 'null') + ')">去人格页查看运行态</button>'
+      + '</div>'
+      + '</div>'
+    : '';
+  document.getElementById('slReviewsPanel').innerHTML = reviewHint + renderSelfLearningList(state.selfLearning.reviews.slice(0, 10), item => {
+    var statusTone = item.status === 'approved' ? 'success' : item.status === 'rejected' ? 'danger' : 'warning';
+    var basePersonaText = personaDisplayName(item.basePersonaId);
+    var createdAt = fmtTime(item.createdAt);
+    var approvedAt = item.approvedAt ? fmtTime(item.approvedAt) : '';
+    var currentTag = currentPersona && currentPersona.basePersonaId === item.basePersonaId
+      ? renderStatusBadge('当前基础人格', 'accent')
+      : renderStatusBadge('旧基础人格', 'warning');
+    var isFocusedReview = Number(focus.selfLearningReviewId || 0) > 0 && Number(item.id || 0) === Number(focus.selfLearningReviewId || 0);
+    return '<div data-testid="sl-review-card" style="padding:14px;border:' + (isFocusedReview ? '2px solid rgba(116,192,252,0.55)' : '1px solid var(--border-color)') + ';box-shadow:' + (isFocusedReview ? '0 0 0 1px rgba(116,192,252,0.15), 0 12px 28px rgba(116,192,252,0.12)' : 'none') + ';border-radius:14px;background:' + (isFocusedReview ? 'rgba(116,192,252,0.08)' : 'rgba(255,255,255,0.02)') + ';">'
+      + '<div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;"><div><strong>' + esc(item.personaName || ('review-' + item.id)) + '</strong>'
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">'
+      + renderStatusBadge('状态：' + (item.status || 'pending'), statusTone)
+      + renderStatusBadge('基础人格：' + basePersonaText, 'accent')
+      + currentTag
+      + (isFocusedReview ? renderStatusBadge('当前定位 review', 'accent') : '')
+      + '</div>'
+      + '<div style="margin-top:8px;font-size:12px;color:var(--text-muted);">生成时间：' + esc(createdAt) + (approvedAt ? ' · 批准时间：' + esc(approvedAt) : '') + '</div>'
+      + '</div>'
+      + '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'
+      + '<button class="analyzer-btn" style="padding:6px 12px;border-radius:8px;background:rgba(116,192,252,0.12);border:1px solid rgba(116,192,252,0.18);" onclick="openPersonaConfigForGroup(' + Number(current) + ', ' + quoteJsString(item.basePersonaId || '') + ', ' + Number(item.id || 0) + ')">查看对应人格</button>'
+      + '<button class="analyzer-btn" data-testid="sl-approve-review-' + Number(item.id || 0) + '" style="padding:6px 12px;border-radius:8px;" onclick="approvePersonaReview(' + Number(item.id || 0) + ')" ' + (item.status !== 'pending' ? 'disabled' : '') + '>批准</button>'
+      + '<button class="analyzer-btn" data-testid="sl-reject-review-' + Number(item.id || 0) + '" style="padding:6px 12px;border-radius:8px;background:var(--danger);color:#fff;border:none;" onclick="rejectPersonaReview(' + Number(item.id || 0) + ')" ' + (item.status !== 'pending' ? 'disabled' : '') + '>驳回</button>'
+      + '</div></div>'
+      + '<div style="margin-top:10px;font-size:13px;color:var(--text-secondary);line-height:1.7;">' + esc(item.summary || '') + '</div>'
+      + '<pre style="margin-top:10px;white-space:pre-wrap;word-break:break-word;background:rgba(0,0,0,0.18);padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.05);color:var(--text-primary);font-size:12px;line-height:1.6;">' + esc(item.suggestedPrompt || '') + '</pre>'
+      + '</div>';
+  });
 
   document.getElementById('slRunsPanel').innerHTML = renderSelfLearningList(state.selfLearning.runs.slice(0, 10), item =>
     '<div style="padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.05);">' +
@@ -2077,9 +2225,28 @@ let cachedGroupList = [];
 
 async function fetchGroupList(forceRefresh = false) {
   if (!forceRefresh && cachedGroupList.length > 0) return cachedGroupList;
-  const s = await api('/api/status');
-  const groups = (s && s.activeGroups) ? s.activeGroups : [];
-  cachedGroupList = groups.map(Number);
+  const [statusData, personaState, overviewData] = await Promise.all([
+    api('/api/status'),
+    dashboardApi.getPersonas(),
+    dashboardApi.getSelfLearningOverview(),
+  ]);
+  if (personaState && personaState.profiles) state.personas = personaState;
+  const groupSet = new Set();
+  ((statusData && statusData.activeGroups) || []).forEach(function(groupId) {
+    if (groupId !== undefined && groupId !== null && groupId !== '') groupSet.add(Number(groupId));
+  });
+  Object.keys((personaState && personaState.groupBindings) || {}).forEach(function(groupId) {
+    if (groupId !== undefined && groupId !== null && groupId !== '') groupSet.add(Number(groupId));
+  });
+  ((overviewData && overviewData.groups) || []).forEach(function(groupId) {
+    if (groupId !== undefined && groupId !== null && groupId !== '') groupSet.add(Number(groupId));
+  });
+  (state.selfLearning.groups || []).forEach(function(groupId) {
+    if (groupId !== undefined && groupId !== null && groupId !== '') groupSet.add(Number(groupId));
+  });
+  cachedGroupList = Array.from(groupSet)
+    .filter(function(groupId) { return Number.isFinite(groupId) && groupId > 0; })
+    .sort(function(a, b) { return a - b; });
   return cachedGroupList;
 }
 
@@ -2100,7 +2267,7 @@ function toggleGroupPicker(inputId, dropdownId) {
 
   fetchGroupList(true).then(groups => {
     if (!groups.length) {
-      dropdown.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-muted);font-size:12px;">暂无群组数据（机器人未连接）</div>';
+      dropdown.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-muted);font-size:12px;">暂无群组数据。可先让机器人在群内产生消息，或先在人格/自学习页保存群级记录。</div>';
     } else {
       dropdown.innerHTML = groups.map(g =>
         '<div class="group-picker-item" onclick="selectGroup(\'' + inputId + '\',\'' + dropdownId + '\',' + g + ')">' +
@@ -2116,7 +2283,9 @@ function toggleGroupPicker(inputId, dropdownId) {
 }
 
 function selectGroup(inputId, dropdownId, groupId) {
-  document.getElementById(inputId).value = groupId;
+  const input = document.getElementById(inputId);
+  input.value = groupId;
+  input.dispatchEvent(new Event('change'));
   document.getElementById(dropdownId).style.display = 'none';
   // 移除父 card 的 has-group-picker 类
   const dropdown = document.getElementById(dropdownId);
@@ -2540,6 +2709,13 @@ Object.assign(window, {
   importVoiceTrainingRaw,
   handleVoiceTrainingUpload,
   updateAstrbotEventFilter,
+  loadPersonas,
+  prepareNewPersona,
+  savePersonaProfile,
+  setDefaultPersonaProfile,
+  deletePersonaProfile,
+  bindGroupPersona,
+  unbindGroupPersona,
   saveConfig,
   loadConfig,
   loadBlockList,
@@ -2563,6 +2739,8 @@ Object.assign(window, {
   importLearningData,
   approvePersonaReview,
   rejectPersonaReview,
+  openPersonaConfigForGroup,
+  openSelfLearningForGroup,
   openChatLogLightbox,
   scrollToReplyMsg,
   loadForwardMsg,

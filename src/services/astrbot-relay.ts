@@ -4,6 +4,7 @@ import { OneBotClient } from './onebot-client';
 import { SessionManager, type ChatMessage } from './session-manager';
 import type { GroupMessage, MessageSegment } from '../types/onebot';
 import { extractTextContent } from '../types/onebot';
+import type { PersonaService, ResolvedPersona } from './persona-service';
 
 /**
  * 猫娘人设系统提示词
@@ -35,6 +36,15 @@ const CATGIRL_PERSONA_PROMPT = [
   '- "...这个问题超出Claw的知识范围呢，抱歉啦喵~"',
 ].join('\n');
 
+const COMPLEX_TASK_RELAY_PROMPT = [
+  '请直接处理下面的问题。',
+  '如果是数学、代码、分析或规划题，请给出关键步骤和最终结论。',
+  '不要把整段内容当成搜索词。',
+].join('\n');
+
+const DEFAULT_COMPLEX_TASK_MESSAGE_MAX_CHARS = 360;
+const COMPLEX_TASK_CONTEXT_MAX_CHARS = 160;
+
 /** 转发会话状态 */
 interface RelaySession {
   groupId: number;
@@ -60,6 +70,7 @@ type PendingReplyTarget = {
   createdAt: number;
   route: DelegationRoute;
   preview: string;
+  personaName: string;
 };
 
 export type AstrbotComplexTaskDecision = {
@@ -91,6 +102,7 @@ export type AstrbotRuntimeEvent = {
 
 export type AstrbotRelaySnapshot = {
   configured: boolean;
+  complexTaskEnabled: boolean;
   activeGroups: number[];
   pendingReplyCount: number;
   explicitRequests: number;
@@ -102,6 +114,8 @@ export type AstrbotRelaySnapshot = {
   lastDelegationReason?: string;
   lastDelegationAt?: string;
   lastMatchedKeywords: string[];
+  complexTaskMinLength: number;
+  complexTaskMessageMaxChars: number;
   decisionCounts: Record<string, number>;
   lastEvent?: AstrbotRuntimeEvent;
   recentEvents: AstrbotRuntimeEvent[];
@@ -123,6 +137,7 @@ type AstrbotRuntimeSettings = {
   complexTaskGroupDenylist: number[];
   complexTaskGroupRouteOverrides: Record<string, string>;
   complexTaskMinLength: number;
+  complexTaskMessageMaxChars: number;
   timeoutMs: number;
   fallbackToLocal: boolean;
 };
@@ -148,6 +163,7 @@ export class AstrbotRelayService {
   private activeGroups: Set<number> = new Set();
   private pendingReplyQueue: PendingReplyTarget[] = [];
   private runtimeSettings: AstrbotRuntimeSettings;
+  private personas: PersonaService | null = null;
   private metrics = {
     explicitRequests: 0,
     relayModeRequests: 0,
@@ -184,6 +200,7 @@ export class AstrbotRelayService {
       complexTaskGroupDenylist: [...config.astrbotComplexTaskGroupDenylist],
       complexTaskGroupRouteOverrides: { ...config.astrbotComplexTaskGroupRouteOverrides },
       complexTaskMinLength: config.astrbotComplexTaskMinLength,
+      complexTaskMessageMaxChars: this.sanitizeMessageMaxChars(config.astrbotComplexTaskMessageMaxChars),
       timeoutMs: config.astrbotTimeoutMs,
       fallbackToLocal: config.astrbotFallbackToLocal,
     };
@@ -197,8 +214,15 @@ export class AstrbotRelayService {
       complexTaskGroupAllowlist: updates.complexTaskGroupAllowlist ? [...updates.complexTaskGroupAllowlist] : this.runtimeSettings.complexTaskGroupAllowlist,
       complexTaskGroupDenylist: updates.complexTaskGroupDenylist ? [...updates.complexTaskGroupDenylist] : this.runtimeSettings.complexTaskGroupDenylist,
       complexTaskGroupRouteOverrides: updates.complexTaskGroupRouteOverrides ? { ...updates.complexTaskGroupRouteOverrides } : this.runtimeSettings.complexTaskGroupRouteOverrides,
+      complexTaskMessageMaxChars: this.sanitizeMessageMaxChars(
+        updates.complexTaskMessageMaxChars ?? this.runtimeSettings.complexTaskMessageMaxChars
+      ),
     };
     this.targetQQ = this.runtimeSettings.targetQQ;
+  }
+
+  setPersonaService(personas: PersonaService): void {
+    this.personas = personas;
   }
 
   /**
@@ -267,6 +291,7 @@ export class AstrbotRelayService {
     this.prunePendingReplyQueue();
     return {
       configured: Boolean(this.targetQQ),
+      complexTaskEnabled: this.runtimeSettings.enabledComplexTasks,
       activeGroups: Array.from(this.activeGroups),
       pendingReplyCount: this.pendingReplyQueue.length,
       explicitRequests: this.metrics.explicitRequests,
@@ -280,6 +305,8 @@ export class AstrbotRelayService {
         ? new Date(this.metrics.lastDelegationAt).toISOString()
         : undefined,
       lastMatchedKeywords: [...this.metrics.lastMatchedKeywords],
+      complexTaskMinLength: this.runtimeSettings.complexTaskMinLength,
+      complexTaskMessageMaxChars: this.runtimeSettings.complexTaskMessageMaxChars,
       decisionCounts: { ...this.metrics.decisionCounts },
       lastEvent: this.recentEvents[0],
       recentEvents: [...this.recentEvents],
@@ -322,18 +349,32 @@ export class AstrbotRelayService {
       return { shouldDelegate: false, reason: 'empty', matchedKeywords: [] };
     }
 
+    const lowerText = normalized.toLowerCase();
     const matchedKeywords = this.runtimeSettings.complexTaskKeywords.filter((keyword) =>
-      normalized.toLowerCase().includes(keyword.toLowerCase())
+      lowerText.includes(keyword.toLowerCase())
     );
+    const hasMultiStepSignal = /(先.+?(再|然后|接着|之后|最后))|(步骤|分阶段|路线图|roadmap|清单|排查路径)/u.test(normalized);
+    const hasMathSignal = /(函数|方程|导数|极值|单调区间|积分|证明|数列|几何|概率|求值|解答|x[\^²³]|\d+[+\-*/=]\d+|y=|f\(x\))/u.test(normalized);
+    const hasCodeSignal = /(报错|异常|错误|日志|堆栈|stack|bug|debug|修复|根因|排查|代码|函数|接口|sql|数据库|编译|部署|配置|api|请求)/iu.test(normalized);
+    const hasPlanningSignal = /(方案|设计|规划|计划|排期|roadmap|架构|取舍|对比|总结|分析原因|修复方案|实现方案|步骤拆解)/u.test(normalized);
+    const hasQuestionSignal = /[?？:：]/u.test(normalized) || /(请|帮我|如何|怎么|为什么|是否|给出|列出|说明|解释|证明|计算|求)/u.test(normalized);
+    const hasStrongComplexSignal = hasMathSignal || hasCodeSignal || hasPlanningSignal || hasMultiStepSignal;
+    const keywordNeedsSupport =
+      matchedKeywords.length > 0 &&
+      (hasStrongComplexSignal || hasQuestionSignal || normalized.length >= Math.max(18, Math.floor(this.runtimeSettings.complexTaskMinLength * 0.6)));
+
     if (matchedKeywords.length > 0) {
-      return { shouldDelegate: true, reason: 'complex-keyword', matchedKeywords };
+      if (keywordNeedsSupport) {
+        return { shouldDelegate: true, reason: 'complex-keyword', matchedKeywords };
+      }
+      return { shouldDelegate: false, reason: 'not-complex', matchedKeywords: [] };
     }
 
-    if (/(先.+?(再|然后|接着|之后|最后))|(步骤|分阶段|路线图|roadmap|清单|排查路径)/u.test(normalized)) {
+    if (hasMultiStepSignal) {
       return { shouldDelegate: true, reason: 'complex-structure', matchedKeywords: [] };
     }
 
-    if (normalized.length >= this.runtimeSettings.complexTaskMinLength) {
+    if (normalized.length >= this.runtimeSettings.complexTaskMinLength && hasStrongComplexSignal) {
       return { shouldDelegate: true, reason: 'complex-length', matchedKeywords: [] };
     }
 
@@ -451,14 +492,15 @@ export class AstrbotRelayService {
   ): Promise<void> {
     const groupId = groupMsg.group_id;
     const cleanText = rawText.replace(/\/Astrbot/i, '').trim();
+    const persona = this.personas ? await this.personas.resolvePersona(groupId) : null;
 
     try {
       // 构建发送消息：智能附加上下文 + 拟人化 prompt
-      const messageToSend = this.buildRelayMessage(groupId, cleanText, nickname);
+      const messageToSend = this.buildRelayMessage(route, groupId, cleanText, nickname, persona);
 
       // 通过 OneBot API 发送私聊消息给 Astrbot
       await this.sendPrivateMsgWithTimeout(messageToSend);
-      this.trackDelegation(groupMsg, cleanText, route, matchedKeywords);
+      this.trackDelegation(groupMsg, cleanText, route, matchedKeywords, persona?.profile.name || 'Claw');
 
       logger.info(
         `[Astrbot->] route=${route} 群${groupId} ${nickname}: ` +
@@ -474,10 +516,77 @@ export class AstrbotRelayService {
    * 构建转发消息，智能决定是否附带上下文，并附加拟人化 prompt
    */
   private buildRelayMessage(
+    route: DelegationRoute,
+    groupId: number,
+    currentText: string,
+    nickname: string,
+    persona: ResolvedPersona | null
+  ): string {
+    if (route === 'complex-task') {
+      return this.buildComplexTaskMessage(groupId, currentText, nickname);
+    }
+
+    return this.buildPersonaRelayMessage(groupId, currentText, nickname, persona);
+  }
+
+  private buildPersonaRelayMessage(
+    groupId: number,
+    currentText: string,
+    nickname: string,
+    persona: ResolvedPersona | null
+  ): string {
+    const needsContext = this.shouldIncludeRecentContext(currentText);
+    const contextPart = needsContext ? this.buildRecentContextPart(groupId) : '';
+    const relayPrompt = persona?.relayPrompt || CATGIRL_PERSONA_PROMPT;
+
+    return (
+      `${relayPrompt}\n\n` +
+      `---\n` +
+      `[来自群${groupId}] ${nickname}: ${currentText}` +
+      (contextPart ? `\n${contextPart}` : '') +
+      (needsContext ? `\n请基于以上上下文简洁回答:` : '')
+    );
+  }
+
+  private buildComplexTaskMessage(
     groupId: number,
     currentText: string,
     nickname: string
   ): string {
+    const messageMaxChars = this.runtimeSettings.complexTaskMessageMaxChars;
+    const needsContext = this.shouldIncludeRecentContext(currentText);
+    const prefix = COMPLEX_TASK_RELAY_PROMPT;
+    const questionLine = `[来自群${groupId}] ${nickname}: ${currentText}`;
+    const contextIntro = '如果问题依赖上下文，请结合上面的最近聊天记录作答。';
+    const rawContextPart = needsContext ? this.buildRecentContextPart(groupId) : '';
+    const limitedContextPart = rawContextPart
+      ? this.truncateWithEllipsis(rawContextPart, COMPLEX_TASK_CONTEXT_MAX_CHARS)
+      : '';
+
+    let parts = [
+      prefix,
+      questionLine,
+      limitedContextPart,
+      limitedContextPart ? contextIntro : '',
+    ].filter(Boolean);
+
+    let message = parts.join('\n\n');
+    if (message.length <= messageMaxChars) {
+      return message;
+    }
+
+    parts = [prefix, questionLine];
+    message = parts.join('\n\n');
+    if (message.length <= messageMaxChars) {
+      return message;
+    }
+
+    const reservedLength = `${prefix}\n\n`.length;
+    const availableForQuestion = Math.max(24, messageMaxChars - reservedLength);
+    return `${prefix}\n\n${this.truncateWithEllipsis(questionLine, availableForQuestion)}`;
+  }
+
+  private shouldIncludeRecentContext(currentText: string): boolean {
     // 如果是简单短消息（<10字符）且不含问号，可能需要上下文
     const needsContext =
       currentText.length < 10 ||
@@ -487,31 +596,74 @@ export class AstrbotRelayService {
       currentText.includes('上面') ||
       currentText.includes('刚才');
 
-    let contextPart = '';
-    if (needsContext) {
-      // 需要上下文：获取最近几条群聊记录
-      const history = this.sessionManager.getHistory(groupId, 0, 'group');
-      const recentMessages = history.slice(-8); // 最近8条
+    return needsContext;
+  }
 
-      if (recentMessages.length > 0) {
-        contextPart = '\n【最近聊天上下文】\n' +
-          recentMessages.map(h => {
-            const content = h.content || '';
-            const cleanContent = content.replace(/^\[.*?\]:\s*/, '');
-            return content;
-          }).join('\n') +
-          '\n';
-      }
+  private buildRecentContextPart(groupId: number): string {
+    const history = this.sessionManager.getHistory(groupId, 0, 'group');
+    const recentMessages = history.slice(-8);
+
+    if (recentMessages.length === 0) {
+      return '';
     }
 
-    // 组合消息：前缀 + 内容 + 可选上下文 + 拟人化指令
-    return (
-      `${CATGIRL_PERSONA_PROMPT}\n\n` +
-      `---\n` +
-      `[来自群${groupId}] ${nickname}: ${currentText}` +
-      contextPart +
-      (needsContext ? `\n请基于以上上下文简洁回答:` : '')
-    );
+    return [
+      '【最近聊天上下文】',
+      ...recentMessages.map((item: ChatMessage) => item.content || ''),
+    ].join('\n');
+  }
+
+  private truncateWithEllipsis(text: string, maxChars: number): string {
+    if (maxChars <= 0) return '';
+    if (text.length <= maxChars) return text;
+    if (maxChars <= 3) return text.slice(0, maxChars);
+    return `${text.slice(0, maxChars - 3)}...`;
+  }
+
+  private adaptAstrbotReplyForGroup(text: string, route: DelegationRoute, personaName = 'Claw'): string {
+    const normalized = text.trim();
+    if (!normalized) return '';
+
+    const intro = route === 'complex-task'
+      ? `${personaName}把 AstrBot 的结果整理回来啦喵~`
+      : `${personaName}帮你转一下 AstrBot 的消息喵~`;
+
+    if (!this.containsReadableText(normalized)) {
+      return `${intro}\n${normalized}`;
+    }
+
+    if (this.looksStructuredAnswer(normalized)) {
+      return `${intro}\n${normalized}\n就是这些啦喵~`;
+    }
+
+    return `${intro}\n${this.ensureCatgirlEnding(normalized)}`;
+  }
+
+  private containsReadableText(text: string): boolean {
+    return /[\u4e00-\u9fa5a-zA-Z0-9]/.test(text.replace(/\[CQ:[^\]]+\]/g, ''));
+  }
+
+  private looksStructuredAnswer(text: string): boolean {
+    if (text.includes('\n')) return true;
+    if (/\b(1\.|2\.|3\.|步骤|结论|原因|分析|解法|代码|示例|注意事项)\b/u.test(text)) return true;
+    return text.length >= 80;
+  }
+
+  private ensureCatgirlEnding(text: string): string {
+    const normalized = text.trim();
+    if (!normalized) return '';
+    if (/喵[~！!？?]?$/.test(normalized)) {
+      return normalized;
+    }
+    if (/[。！!？?]$/.test(normalized)) {
+      return `${normalized}喵~`;
+    }
+    return `${normalized}喵~`;
+  }
+
+  private sanitizeMessageMaxChars(value: number): number {
+    if (!Number.isFinite(value)) return DEFAULT_COMPLEX_TASK_MESSAGE_MAX_CHARS;
+    return Math.max(120, Math.floor(value));
   }
 
   /**
@@ -691,7 +843,7 @@ export class AstrbotRelayService {
     if (!this.targetQQ || senderId !== this.targetQQ) return false;
     this.prunePendingReplyQueue();
 
-    const pending = this.pendingReplyQueue.shift();
+    const pending = this.pendingReplyQueue[0];
     const targetGroupId =
       pending?.groupId ??
       Array.from(this.relaySessions.values()).find((session) => session.active)?.groupId;
@@ -707,19 +859,27 @@ export class AstrbotRelayService {
         return true;
       }
 
-      await this.onebot.sendGroupMsg(targetGroupId, `[Astrbot] ${forwardText}`);
+      const adaptedText = this.adaptAstrbotReplyForGroup(
+        forwardText,
+        pending?.route || 'relay-mode',
+        pending?.personaName || 'Claw'
+      );
+      await this.onebot.sendGroupMsg(targetGroupId, `[Astrbot] ${adaptedText}`);
+      if (pending) {
+        this.pendingReplyQueue.shift();
+      }
       this.metrics.replyForwardCount += 1;
       this.pushEvent({
         groupId: targetGroupId,
         route: pending?.route || 'relay-mode',
         status: 'forwarded',
         reason: 'reply-forwarded',
-        preview: forwardText.slice(0, 80),
+        preview: adaptedText.slice(0, 80),
       });
 
       logger.info(
         `[Astrbot<-] route=${pending?.route || 'relay-mode'} -> 群${targetGroupId}: ` +
-        forwardText.substring(0, 80)
+        adaptedText.substring(0, 80)
       );
 
       return true;
@@ -761,7 +921,8 @@ export class AstrbotRelayService {
     groupMsg: GroupMessage,
     cleanText: string,
     route: DelegationRoute,
-    matchedKeywords: string[]
+    matchedKeywords: string[],
+    personaName: string
   ): void {
     const groupId = groupMsg.group_id;
     const now = Date.now();
@@ -781,6 +942,7 @@ export class AstrbotRelayService {
       createdAt: now,
       route,
       preview: cleanText.slice(0, 80),
+      personaName,
     });
     this.prunePendingReplyQueue();
 

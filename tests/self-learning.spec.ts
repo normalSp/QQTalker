@@ -7,6 +7,7 @@ import { SelfLearningPlugin } from '../src/plugins/self-learning/self-learning-p
 import { SelfLearningService } from '../src/plugins/self-learning/self-learning-service';
 import { SelfLearningStore } from '../src/plugins/self-learning/self-learning-store';
 import { runAdvancedLearningAnalysis } from '../src/plugins/self-learning/advanced-analysis';
+import { PersonaService } from '../src/services/persona-service';
 
 const tempFiles: string[] = [];
 
@@ -77,11 +78,58 @@ describe('SelfLearningService advanced flow', () => {
 
     const reviews = await service.listPersonaReviews(1001);
     expect(reviews.length).toBeGreaterThan(0);
+    expect(reviews[0].basePersonaId).toBe('claw-default');
 
     await service.approvePersonaReview(reviews[0].id!);
     const snapshot = await store.getActivePersonaSnapshot(1001);
     expect(snapshot?.content).toContain('高级学习结果');
+    expect(snapshot?.basePersonaId).toBe('claw-default');
 
+    await store.close();
+  });
+
+  it('rejects approval when review was generated under another base persona', async () => {
+    const { store, service } = createService();
+    const personaFile = path.resolve(process.cwd(), 'temp', `persona-service-test-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+    tempFiles.push(personaFile);
+    const personas = new PersonaService(personaFile);
+    await service.initialize();
+    service.bindPersonaService(personas);
+
+    personas.createProfile({
+      id: 'cool-wolf',
+      name: 'Cool Wolf',
+      summary: '冷静一点',
+      systemPrompt: '你是 Cool Wolf。',
+      relayPrompt: '你是 Cool Wolf。',
+    });
+    personas.bindGroup(4004, 'cool-wolf');
+
+    await service.captureMessage({
+      groupId: 4004,
+      userId: 5001,
+      nickname: 'Neko',
+      text: '我喜欢今晚这个气氛哈哈',
+      rawMessage: '我喜欢今晚这个气氛哈哈',
+      isAtBot: true,
+      createdAt: Date.now(),
+    });
+    await service.captureMessage({
+      groupId: 4004,
+      userId: 5002,
+      nickname: 'Mio',
+      text: '谢谢你呀，继续聊这个话题吧',
+      rawMessage: '谢谢你呀，继续聊这个话题吧',
+      isAtBot: false,
+      createdAt: Date.now() + 1000,
+    });
+    await service.runLearningCycleForGroup(4004);
+    const review = (await service.listPersonaReviews(4004))[0];
+    expect(review.basePersonaId).toBe('cool-wolf');
+
+    personas.bindGroup(4004, 'claw-default');
+
+    await expect(service.approvePersonaReview(review.id!)).rejects.toThrow('旧人格');
     await store.close();
   });
 

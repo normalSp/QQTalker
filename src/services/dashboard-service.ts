@@ -8,6 +8,8 @@ import { config } from '../types/config';
 import type { OneBotClient } from './onebot-client';
 import type { BlockService } from './block-service';
 import type { DashboardRouteProvider, DashboardRouteResult } from '../plugins/plugin-types';
+import type { PersonaService } from './persona-service';
+import type { PluginManager } from '../plugins/plugin-manager';
 
 /** SSE 事件类型 */
 interface SseEvent {
@@ -77,6 +79,8 @@ export class DashboardService {
   private customRoutes: DashboardRouteProvider[] = [];
   private astrbotStatusProvider: (() => unknown) | null = null;
   private configUpdateHandler: ((updates: Record<string, string>) => void | Promise<void>) | null = null;
+  private personaService: PersonaService | null = null;
+  private pluginManager: PluginManager | null = null;
 
   constructor(port: number = 3180) {
     this.port = port;
@@ -93,6 +97,10 @@ export class DashboardService {
       sessionsCount: 0,
       sendQueueLength: 0,
     };
+  }
+
+  getBaseUrl(): string {
+    return `http://127.0.0.1:${this.port}`;
   }
 
   /** 注入 OneBot 客户端 */
@@ -115,6 +123,14 @@ export class DashboardService {
 
   setConfigUpdateHandler(handler: ((updates: Record<string, string>) => void | Promise<void>) | null): void {
     this.configUpdateHandler = handler;
+  }
+
+  setPersonaService(personaService: PersonaService | null): void {
+    this.personaService = personaService;
+  }
+
+  setPluginManager(pluginManager: PluginManager | null): void {
+    this.pluginManager = pluginManager;
   }
 
   registerRoutes(routes: DashboardRouteProvider[]): void {
@@ -278,8 +294,23 @@ export class DashboardService {
         case '/api/status':
           this.handleApi(httpRes, () => this.getStatusData());
           return;
+        case '/api/personas':
+          this.handleApi(httpRes, () => this.getPersonaStateData());
+          return;
+        case '/api/personas/resolve':
+          this.handleApi(httpRes, async () => {
+            const groupId = parseInt(String(urlObj.searchParams.get('groupId') || '0'), 10);
+            if (!groupId || !this.personaService) {
+              return { persona: null };
+            }
+            return { persona: await this.personaService.resolvePersona(groupId) };
+          });
+          return;
         case '/api/config':
           this.handleApi(httpRes, () => this.getConfigData());
+          return;
+        case '/api/plugins':
+          this.handleApi(httpRes, () => this.getPluginsData());
           return;
         case '/api/stats':
           this.handleApi(httpRes, () => this.getStatsData());
@@ -346,6 +377,77 @@ export class DashboardService {
             this.updateEnvConfig(body);
             void this.configUpdateHandler?.(body);
             this.handleApi(httpRes, () => ({ success: true, config: this.getConfigData() }));
+          });
+          return;
+        case '/api/plugins/install':
+          this.handlePostBody(httpReq, (body) => {
+            this.handleApi(httpRes, async () => {
+              if (!this.pluginManager) {
+                return { success: false, error: 'Plugin manager unavailable.' };
+              }
+              const source = String(body.source || '').trim() as 'local' | 'npm' | 'git';
+              const locator = String(body.locator || '').trim();
+              const ref = String(body.ref || '').trim() || undefined;
+              if (!source || !locator) {
+                return { success: false, error: 'Missing source or locator.' };
+              }
+              const result = await this.pluginManager.installPlugin({ source, locator, ref, enable: body.enable !== false });
+              return result.success ? {
+                success: true,
+                plugin: result.plugin,
+                warnings: result.warnings || [],
+              } : result;
+            });
+          });
+          return;
+        case '/api/personas/profile/create':
+          this.handlePostBody(httpReq, (body) => {
+            this.handleApi(httpRes, () => ({
+              success: true,
+              profile: this.personaService?.createProfile(this.parsePersonaProfileBody(body)),
+              state: this.getPersonaStateData(),
+            }));
+          });
+          return;
+        case '/api/personas/profile/update':
+          this.handlePostBody(httpReq, (body) => {
+            this.handleApi(httpRes, () => ({
+              success: true,
+              profile: this.personaService?.updateProfile(String(body.id || '').trim(), this.parsePersonaProfileBody(body)),
+              state: this.getPersonaStateData(),
+            }));
+          });
+          return;
+        case '/api/personas/profile/delete':
+          this.handlePostBody(httpReq, (body) => {
+            this.handleApi(httpRes, () => {
+              this.personaService?.deleteProfile(String(body.id || '').trim());
+              return { success: true, state: this.getPersonaStateData() };
+            });
+          });
+          return;
+        case '/api/personas/default':
+          this.handlePostBody(httpReq, (body) => {
+            this.handleApi(httpRes, () => {
+              this.personaService?.setDefaultPersona(String(body.id || '').trim());
+              return { success: true, state: this.getPersonaStateData() };
+            });
+          });
+          return;
+        case '/api/personas/bind-group':
+          this.handlePostBody(httpReq, (body) => {
+            this.handleApi(httpRes, () => {
+              this.personaService?.bindGroup(parseInt(String(body.groupId || '0'), 10), String(body.personaId || '').trim());
+              return { success: true, state: this.getPersonaStateData() };
+            });
+          });
+          return;
+        case '/api/personas/unbind-group':
+          this.handlePostBody(httpReq, (body) => {
+            this.handleApi(httpRes, () => {
+              this.personaService?.unbindGroup(parseInt(String(body.groupId || '0'), 10));
+              return { success: true, state: this.getPersonaStateData() };
+            });
           });
           return;
         case '/api/config/reload':
@@ -419,9 +521,85 @@ export class DashboardService {
       }
     }
 
-    const customRoute = this.customRoutes.find(route => route.method === httpReq.method && route.path === urlPath);
+    if (httpReq.method === 'PUT' && urlPath.startsWith('/api/plugins/')) {
+      const pluginId = this.extractPluginIdFromPath(urlPath, '/api/plugins/', '/config');
+      if (pluginId) {
+        this.handlePostBody(httpReq, (body) => {
+          this.handleApi(httpRes, async () => {
+            if (!this.pluginManager) {
+              return { success: false, error: 'Plugin manager unavailable.' };
+            }
+            const configData = await this.pluginManager.updatePluginConfig(pluginId, body);
+            return { success: true, config: configData };
+          });
+        });
+        return;
+      }
+    }
+
+    if (httpReq.method === 'GET' && urlPath.startsWith('/api/plugins/')) {
+      const pluginId = this.extractPluginIdFromPath(urlPath, '/api/plugins/', '/config-schema');
+      if (pluginId) {
+        this.handleApi(httpRes, () => ({
+          success: true,
+          schema: this.pluginManager?.getPluginConfigSchema(pluginId) || null,
+        }));
+        return;
+      }
+      const configPluginId = this.extractPluginIdFromPath(urlPath, '/api/plugins/', '/config');
+      if (configPluginId) {
+        this.handleApi(httpRes, () => ({
+          success: true,
+          config: this.pluginManager?.getPluginConfig(configPluginId) || {},
+        }));
+        return;
+      }
+      const statusPluginId = this.extractPluginIdFromPath(urlPath, '/api/plugins/', '/status');
+      if (statusPluginId) {
+        this.handleApi(httpRes, () => ({
+          success: true,
+          detail: this.pluginManager?.getPluginDetail(statusPluginId) || null,
+        }));
+        return;
+      }
+      const logPluginId = this.extractPluginIdFromPath(urlPath, '/api/plugins/', '/logs');
+      if (logPluginId) {
+        this.handleApi(httpRes, () => ({
+          success: true,
+          logs: this.pluginManager?.getPluginLogs(logPluginId) || [],
+        }));
+        return;
+      }
+    }
+
+    if (httpReq.method === 'POST' && urlPath.startsWith('/api/plugins/')) {
+      const actionMatch = urlPath.match(/^\/api\/plugins\/([^/]+)\/(enable|disable|uninstall|update)$/);
+      if (actionMatch) {
+        const pluginId = decodeURIComponent(actionMatch[1]);
+        const action = actionMatch[2];
+        this.handleApi(httpRes, async () => {
+          if (!this.pluginManager) {
+            return { success: false, error: 'Plugin manager unavailable.' };
+          }
+          if (action === 'enable') return this.pluginManager.enablePlugin(pluginId);
+          if (action === 'disable') return this.pluginManager.disablePlugin(pluginId);
+          if (action === 'uninstall') return this.pluginManager.uninstallPlugin(pluginId);
+          if (action === 'update') return this.pluginManager.updatePlugin(pluginId);
+          return { success: false, error: 'Unsupported plugin action.' };
+        });
+        return;
+      }
+    }
+
+    const dynamicRoutes = this.pluginManager?.getDashboardRoutes() || [];
+    const customRoute = [...this.customRoutes, ...dynamicRoutes].find(route => route.method === httpReq.method && route.path === urlPath);
     if (customRoute) {
       this.handleCustomRoute(customRoute, httpReq, httpRes, urlObj);
+      return;
+    }
+
+    if (httpReq.method === 'GET' && urlPath.startsWith('/plugins/')) {
+      this.serveDashboardHtml(httpRes);
       return;
     }
 
@@ -1241,6 +1419,7 @@ export class DashboardService {
       astrbotComplexTaskGroupDenylist: config.astrbotComplexTaskGroupDenylist,
       astrbotComplexTaskGroupRouteOverrides: config.astrbotComplexTaskGroupRouteOverrides,
       astrbotComplexTaskMinLength: config.astrbotComplexTaskMinLength,
+      astrbotComplexTaskMessageMaxChars: config.astrbotComplexTaskMessageMaxChars,
       astrbotTimeoutMs: config.astrbotTimeoutMs,
       astrbotFallbackToLocal: config.astrbotFallbackToLocal,
       logLevel: config.logLevel,
@@ -1259,6 +1438,44 @@ export class DashboardService {
       selfLearningDbFile: config.selfLearning.dbFile,
       selfLearningMysqlUrl: config.selfLearning.mysqlUrl,
       selfLearningPostgresUrl: config.selfLearning.postgresUrl,
+    };
+  }
+
+  private getPluginsData() {
+    return {
+      plugins: this.pluginManager?.listPlugins() || [],
+      pages: this.pluginManager?.getPluginPages() || [],
+    };
+  }
+
+  private getPersonaStateData() {
+    return this.personaService?.getState(Array.from(this.status.activeGroups)) || {
+      defaultPersonaId: '',
+      profiles: [],
+      groupBindings: {},
+      usage: {},
+      activeGroups: Array.from(this.status.activeGroups),
+      updatedAt: '',
+    };
+  }
+
+  private parsePersonaProfileBody(body: Record<string, string>) {
+    const splitList = (value: unknown): string[] => {
+      return String(value || '')
+        .split(/\r?\n|,/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+    };
+    return {
+      id: String(body.id || '').trim() || undefined,
+      name: String(body.name || '').trim(),
+      enabled: body.enabled === undefined ? undefined : String(body.enabled) === 'true',
+      summary: String(body.summary || '').trim(),
+      systemPrompt: String(body.systemPrompt || '').trim(),
+      relayPrompt: String(body.relayPrompt || '').trim(),
+      replyRules: splitList(body.replyRules),
+      catchphrases: splitList(body.catchphrases),
+      ttsCharacter: String(body.ttsCharacter || '').trim(),
     };
   }
 
@@ -1321,6 +1538,12 @@ export class DashboardService {
     }
   }
 
+  private extractPluginIdFromPath(urlPath: string, prefix: string, suffix: string): string | null {
+    if (!urlPath.startsWith(prefix) || !urlPath.endsWith(suffix)) return null;
+    const raw = urlPath.slice(prefix.length, urlPath.length - suffix.length);
+    return raw ? decodeURIComponent(raw) : null;
+  }
+
   /** 处理 SSE 连接 */
   private handleSse(req: http.IncomingMessage, res: http.ServerResponse): void {
     res.writeHead(200, {
@@ -1346,7 +1569,7 @@ export class DashboardService {
   }
 
   /** 解析 POST body */
-  private handlePostBody(req: http.IncomingMessage, handler: (body: Record<string, string>) => void): void {
+  private handlePostBody(req: http.IncomingMessage, handler: (body: Record<string, any>) => void): void {
     let body = '';
     req.on('data', (chunk) => { body += chunk; });
     req.on('end', () => {
@@ -1361,6 +1584,18 @@ export class DashboardService {
   private handleApi(res: http.ServerResponse, handler: () => any): void {
     try {
       const data = handler();
+      if (data && typeof data.then === 'function') {
+        Promise.resolve(data)
+          .then((resolved) => {
+            res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify(resolved));
+          })
+          .catch((err: any) => {
+            res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify({ error: err.message }));
+          });
+        return;
+      }
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify(data));
     } catch (err: any) {

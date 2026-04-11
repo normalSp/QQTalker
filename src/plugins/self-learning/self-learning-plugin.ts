@@ -44,7 +44,21 @@ export class SelfLearningPlugin implements QQTalkerPlugin {
   private readonly service = new SelfLearningService(this.store);
   private timer: ReturnType<typeof setInterval> | null = null;
 
-  async initialize(_context: PluginContext): Promise<void> {
+  async initialize(context: PluginContext): Promise<void> {
+    if (context.personas) {
+      this.service.bindPersonaService(context.personas);
+      context.personas.setLearningOverlayProvider(async (groupId, basePersonaId) => {
+        const snapshot = await this.store.getActivePersonaSnapshot(groupId, basePersonaId);
+        if (!snapshot?.content) return null;
+        return {
+          basePersonaId,
+          prompt: snapshot.content,
+          personaName: snapshot.personaName,
+          reviewId: snapshot.reviewId ?? null,
+          createdAt: snapshot.createdAt,
+        };
+      });
+    }
     await this.service.initialize();
     this.timer = setInterval(() => {
       this.service.runLearningCycle().catch((error) => {

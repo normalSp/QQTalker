@@ -32,7 +32,9 @@ export function createAstrbotPanelController(options) {
       }
       return;
     }
-    const enabled = document.getElementById('cfg-astrbotEnabledComplexTasks')?.classList.contains('on');
+    const enabled = snapshot.complexTaskEnabled !== undefined
+      ? !!snapshot.complexTaskEnabled
+      : document.getElementById('cfg-astrbotEnabledComplexTasks')?.classList.contains('on');
     pill.textContent = enabled ? '复杂任务委托：已启用' : '复杂任务委托：待开启';
     pill.className = 'voice-status-pill ' + (enabled ? 'ok' : 'error');
     meta.textContent =
@@ -44,11 +46,14 @@ export function createAstrbotPanelController(options) {
       const events = getAstrbotFilteredEvents(snapshot);
       const decisionCounts = snapshot.decisionCounts || {};
       const lastEvent = snapshot.lastEvent || null;
+      const minLength = snapshot.complexTaskMinLength || 48;
+      const messageMaxChars = snapshot.complexTaskMessageMaxChars || 360;
       const topReasons = Object.entries(decisionCounts).slice(0, 6).map(function(entry) {
         return entry[0] + ':' + entry[1];
       }).join(' / ');
       detail.innerHTML = '<div class="voice-model-panel-title">AstrBot 联动详情</div>'
         + '<div class="voice-model-list">'
+        + '<div><strong>当前阈值</strong>：最小复杂长度 ' + esc(String(minLength)) + ' 字 / 最大转发长度 ' + esc(String(messageMaxChars)) + ' 字</div>'
         + '<div><strong>激活转发群</strong>：' + esc((snapshot.activeGroups || []).join(', ') || '无') + '</div>'
         + '<div><strong>最近匹配关键词</strong>：' + esc((snapshot.lastMatchedKeywords || []).join(', ') || '无') + '</div>'
         + '<div><strong>最近决策</strong>：' + esc(lastEvent ? ((lastEvent.status || '-') + ' / ' + (lastEvent.reason || '-') + ' / 群' + (lastEvent.groupId || '-')) : '暂无') + '</div>'

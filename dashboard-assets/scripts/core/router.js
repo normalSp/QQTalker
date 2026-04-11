@@ -5,6 +5,8 @@ export const pageTitles = {
   analytics: { title: '数据分析', bc: '控制台 / 监控 / 分析' },
   analyzer: { title: '智能日志分析', bc: '控制台 / 监控 / 日志分析' },
   selflearning: { title: '自学习中心', bc: '控制台 / 插件 / 自学习中心' },
+  plugins: { title: '插件中心', bc: '控制台 / 插件 / 插件中心' },
+  pluginview: { title: '插件页面', bc: '控制台 / 插件 / 插件页面' },
   config: { title: '配置管理', bc: '控制台 / 系统 / 配置' },
   blocklist: { title: '屏蔽管理', bc: '控制台 / 系统 / 屏蔽管理' },
   process: { title: '进程信息', bc: '控制台 / 系统 / 进程' },
@@ -13,7 +15,7 @@ export const pageTitles = {
 export function switchDashboardPage(page, hooks) {
   if (!page) return;
   document.querySelectorAll('.nav-item').forEach(function(i) { i.classList.remove('active'); });
-  const nav = document.querySelector('[data-page="' + page + '"]');
+  const nav = document.querySelector('[data-page="' + (page === 'pluginview' ? 'plugins' : page) + '"]');
   if (nav) nav.classList.add('active');
   document.querySelectorAll('.page').forEach(function(p) {
     p.classList.remove('active', 'entering', 'leaving');
@@ -42,6 +44,8 @@ export function switchDashboardPage(page, hooks) {
   }
   hooks = hooks || {};
   if (page === 'selflearning' && hooks.onSelfLearning) hooks.onSelfLearning();
+  if (page === 'plugins' && hooks.onPlugins) hooks.onPlugins();
+  if (page === 'pluginview' && hooks.onPluginView) hooks.onPluginView();
   if (page === 'config' && hooks.onConfig) hooks.onConfig();
   if (page === 'process' && hooks.onProcess) hooks.onProcess();
   if (page === 'analytics' && hooks.onAnalytics) hooks.onAnalytics();

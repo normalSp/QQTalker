@@ -56,6 +56,10 @@
         智能日志分析
       </div>
       <div class="nav-label">插件</div>
+      <div class="nav-item" data-page="plugins">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M12 2v6"/><path d="M12 16v6"/><path d="M4.93 4.93l4.24 4.24"/><path d="M14.83 14.83l4.24 4.24"/><path d="M2 12h6"/><path d="M16 12h6"/><path d="M4.93 19.07l4.24-4.24"/><path d="M14.83 9.17l4.24-4.24"/><rect x="8" y="8" width="8" height="8" rx="2"/></svg></span>
+        插件中心
+      </div>
       <div class="nav-item" data-page="selflearning">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M12 2v6"/><path d="M12 16v6"/><path d="M4.93 4.93l4.24 4.24"/><path d="M14.83 14.83l4.24 4.24"/><path d="M2 12h6"/><path d="M16 12h6"/><path d="M4.93 19.07l4.24-4.24"/><path d="M14.83 9.17l4.24-4.24"/><circle cx="12" cy="12" r="3"/></svg></span>
         自学习中心
@@ -305,6 +309,67 @@
         </div>
       </div>
 
+      <!-- ========== PLUGINS PAGE ========== -->
+      <div class="page" id="page-plugins">
+        <div class="plugin-hub-shell">
+        <div class="plugin-hero">
+          <div>
+            <div class="plugin-hero-title">插件中心</div>
+            <div class="plugin-hero-desc">统一管理 QQTalker 原生插件与桥接插件。支持从本地目录、npm 包和 Git 仓库接入；复杂插件可在这里完成配置、查看状态、浏览桥接资源并进行升级维护。</div>
+          </div>
+          <div class="plugin-hero-badges">
+            <div class="plugin-hero-badge"><span>安装来源</span><strong>local / npm / git</strong></div>
+            <div class="plugin-hero-badge"><span>桥接样板</span><strong>AstrBot Meme Manager</strong></div>
+          </div>
+        </div>
+        <div class="card full-card plugin-install-card">
+          <div class="card-header-bar">
+            <span class="card-title">插件安装</span>
+          </div>
+          <div class="card-body">
+            <div class="plugin-install-grid">
+              <div class="config-group" style="margin:0;">
+                <div class="plugin-install-label">来源类型</div>
+                <select id="pluginInstallSource" class="config-input">
+                  <option value="local">local</option>
+                  <option value="npm">npm</option>
+                  <option value="git">git</option>
+                </select>
+              </div>
+              <div class="config-group" style="margin:0;">
+                <div class="plugin-install-label">定位信息</div>
+                <input id="pluginInstallLocator" class="config-input" type="text" placeholder="本地目录、npm 包名或 Git URL">
+              </div>
+              <div class="config-group" style="margin:0;">
+                <div class="plugin-install-label">Ref / 标签</div>
+                <input id="pluginInstallRef" class="config-input" type="text" placeholder="可选，如 main 或 v1.0.0">
+              </div>
+              <button class="save-config-btn" id="pluginInstallBtn">安装插件</button>
+            </div>
+          </div>
+        </div>
+        <div class="plugin-panel-layout">
+          <div class="card plugin-sidebar-card">
+            <div class="card-header-bar">
+              <span class="card-title">已注册插件</span>
+            </div>
+            <div class="card-body">
+              <div class="plugin-sidebar-head">
+                <div class="plugin-sidebar-title">插件列表</div>
+                <div class="plugin-sidebar-count" id="pluginCountBadge">0</div>
+              </div>
+              <div id="pluginList"></div>
+            </div>
+          </div>
+          <div id="pluginDetail"></div>
+        </div>
+        </div>
+      </div>
+
+      <div class="page" id="page-pluginview">
+        <div id="pluginStandaloneView"></div>
+      </div>
+
       <!-- ========== LOG ANALYZER PAGE (整合) ========== -->
       <div class="page" id="page-analyzer">
         <div class="analyzer-header">
@@ -497,6 +562,7 @@
               </div>
               <div class="config-tabs" id="configTabs">
                 <button class="config-tab active" data-config-section="access">接入与身份</button>
+                <button class="config-tab" data-config-section="persona">人格</button>
                 <button class="config-tab" data-config-section="voice">语音链路</button>
                 <button class="config-tab" data-config-section="automation">自动化与联动</button>
                 <button class="config-tab" data-config-section="learning">自学习</button>
@@ -555,6 +621,93 @@
                 <div class="config-row">
                   <span class="config-label">MAX_HISTORY</span>
                   <input class="config-input" id="cfg-maxHistory" type="number" placeholder="100">
+                </div>
+              </div>
+              <div class="config-group wide" data-config-section="persona">
+                <div class="config-group-title">&#127917; 人格管理</div>
+                <div class="config-group-desc">按群切换基础人格，并为每个人格维护名称、提示词、转发风格和默认 TTS 角色。自学习增强层会在此基础上叠加，不会直接覆盖这里的基础人格。</div>
+                <div class="voice-service-summary">
+                  <div class="voice-status-pill" id="personaSummaryStatus">人格状态：等待加载</div>
+                  <div class="voice-muted" id="personaSummaryMeta">默认人格、群绑定和学习增强层状态会显示在这里。</div>
+                </div>
+                <div class="config-filter-row" style="margin-top:12px;">
+                  <select class="config-input" id="personaSelect" style="max-width:280px;"></select>
+                  <button class="save-config-btn secondary" onclick="loadPersonas()">&#128260; 刷新人格列表</button>
+                  <button class="save-config-btn" onclick="prepareNewPersona()">&#10133; 新建人格</button>
+                  <button class="save-config-btn" style="background:linear-gradient(135deg,var(--success),var(--teal));" onclick="savePersonaProfile()">&#128190; 保存人格</button>
+                  <button class="save-config-btn secondary" onclick="setDefaultPersonaProfile()">&#11088; 设为默认人格</button>
+                  <button class="save-config-btn" style="background:var(--danger-soft);color:var(--danger);" onclick="deletePersonaProfile()">&#128465; 删除人格</button>
+                </div>
+                <div class="config-row">
+                  <span class="config-label">PERSONA_ID</span>
+                  <input class="config-input" id="personaIdInput" placeholder="如 claw-default">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">PERSONA_NAME</span>
+                  <input class="config-input" id="personaNameInput" placeholder="如 Claw 默认猫娘">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">PERSONA_ENABLED</span>
+                  <div class="config-toggle-wrap">
+                    <div class="config-toggle on" id="personaEnabledToggle" onclick="this.classList.toggle('on')"></div>
+                    <span class="config-toggle-label">启用此人格</span>
+                  </div>
+                </div>
+                <div class="config-row">
+                  <span class="config-label">PERSONA_SUMMARY</span>
+                  <input class="config-input" id="personaSummaryInput" placeholder="一句话描述这个人格的定位">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">PERSONA_TTS_CHARACTER</span>
+                  <input class="config-input" id="personaTtsCharacterInput" placeholder="如 preset-yongchutafi">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">PERSONA_REPLY_RULES</span>
+                  <textarea class="config-input" id="personaReplyRulesInput" rows="4" placeholder="每行一条回复规则"></textarea>
+                </div>
+                <div class="config-row">
+                  <span class="config-label">PERSONA_CATCHPHRASES</span>
+                  <textarea class="config-input" id="personaCatchphrasesInput" rows="3" placeholder="每行一个口癖或关键词"></textarea>
+                </div>
+                <div class="config-row">
+                  <span class="config-label">PERSONA_SYSTEM_PROMPT</span>
+                  <textarea class="config-input" id="personaSystemPromptInput" rows="12" placeholder="基础人格 system prompt"></textarea>
+                </div>
+                <div class="config-row">
+                  <span class="config-label">PERSONA_RELAY_PROMPT</span>
+                  <textarea class="config-input" id="personaRelayPromptInput" rows="10" placeholder="AstrBot 转发场景下的人格 prompt，留空则复用基础 prompt"></textarea>
+                </div>
+                <div id="personaUsagePanel" class="voice-model-panel" style="margin-top:14px;">
+                  <div class="voice-model-panel-title">人格使用情况</div>
+                  <div class="voice-muted">等待加载人格数据...</div>
+                </div>
+              </div>
+              <div class="config-group wide" data-config-section="persona">
+                <div class="config-group-title">&#128101; 按群切换人格</div>
+                <div class="config-group-desc">选择某个群绑定基础人格。切换后，自学习增强层会按当前基础人格重新匹配；旧人格下的增强层不会直接复用。</div>
+                <div class="config-row">
+                  <span class="config-label">GROUP_ID</span>
+                  <div style="position:relative;width:100%;">
+                    <input class="config-input" id="personaBindGroupId" placeholder="输入群号，或使用右侧选择器">
+                    <div id="personaBindGroupDropdown" class="group-picker-dropdown" style="display:none;"></div>
+                  </div>
+                  <button class="save-config-btn secondary" style="margin-left:10px;" onclick="toggleGroupPicker('personaBindGroupId','personaBindGroupDropdown')">&#128269; 选择群号</button>
+                </div>
+                <div class="config-row">
+                  <span class="config-label">TARGET_PERSONA</span>
+                  <select class="config-input" id="personaBindSelect"></select>
+                </div>
+                <div class="voice-inline-actions" style="margin-top:8px;">
+                  <button class="save-config-btn" onclick="bindGroupPersona()">&#128279; 绑定到群</button>
+                  <button class="save-config-btn secondary" onclick="unbindGroupPersona()">&#128683; 解除绑定</button>
+                </div>
+                <div id="personaBindingStatusPanel" class="voice-model-panel" style="margin-top:14px;">
+                  <div class="voice-model-panel-title">当前群人格运行态</div>
+                  <div class="voice-muted">选择群号后，将显示当前基础人格、自学习增强层状态和待审批建议。</div>
+                </div>
+                <div id="personaBindingsPanel" class="voice-model-panel" style="margin-top:14px;">
+                  <div class="voice-model-panel-title">当前群绑定</div>
+                  <div class="voice-muted">等待加载群绑定状态...</div>
                 </div>
               </div>
               <div class="config-group" data-config-section="voice">
@@ -792,6 +945,10 @@
                 <div class="config-row">
                   <span class="config-label">ASTRBOT_COMPLEX_TASK_MIN_LENGTH</span>
                   <input class="config-input" id="cfg-astrbotComplexTaskMinLength" type="number" placeholder="48">
+                </div>
+                <div class="config-row">
+                  <span class="config-label">ASTRBOT_COMPLEX_TASK_MESSAGE_MAX_CHARS</span>
+                  <input class="config-input" id="cfg-astrbotComplexTaskMessageMaxChars" type="number" placeholder="360">
                 </div>
                 <div class="config-row">
                   <span class="config-label">ASTRBOT_TIMEOUT_MS</span>

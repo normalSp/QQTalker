@@ -104,6 +104,7 @@ export const config = {
   astrbotComplexTaskGroupDenylist: parseNumberCsvEnv(process.env.ASTRBOT_COMPLEX_TASK_GROUP_DENYLIST),
   astrbotComplexTaskGroupRouteOverrides: parseMapEnv(process.env.ASTRBOT_COMPLEX_TASK_GROUP_ROUTE_OVERRIDES),
   astrbotComplexTaskMinLength: parseInt(process.env.ASTRBOT_COMPLEX_TASK_MIN_LENGTH || '48', 10),
+  astrbotComplexTaskMessageMaxChars: parseInt(process.env.ASTRBOT_COMPLEX_TASK_MESSAGE_MAX_CHARS || '360', 10),
   astrbotTimeoutMs: parseInt(process.env.ASTRBOT_TIMEOUT_MS || '45000', 10),
   astrbotFallbackToLocal: process.env.ASTRBOT_FALLBACK_TO_LOCAL !== 'false',
 
