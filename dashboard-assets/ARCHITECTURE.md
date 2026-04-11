@@ -20,15 +20,17 @@ Rules:
 - `scripts/core/sse.js`: SSE connection lifecycle.
 - `scripts/core/charts.js`: shared Chart.js initialization and updates.
 - `scripts/services/dashboard-api.js`: centralized API client wrappers.
-- `scripts/dashboard-app.js`: app composition layer plus page-specific logic kept from the original console.
+- `scripts/dashboard-app.js`: app composition layer, wiring router/state/API and delegating to page modules.
+- `scripts/pages/plugin-center-page.js`: plugin center UI (install, enable/disable, config schema, adapter/bridge oriented actions); routed via `router.js` like other console pages.
+- `scripts/pages/config-page.js` and other `scripts/pages/*.js`: feature pages split out from the legacy monolith where refactors have landed.
 
 ## Static Serving
 
 - `src/services/dashboard-service.ts` serves `/dashboard-assets/*`.
 - `tests/e2e/mock-dashboard-server.cjs` mirrors that behavior for Playwright.
 
-## Follow-up Refactor Path
+## Refactor status
 
-- Move page-specific logic from `dashboard-app.js` into `scripts/pages/*.js`.
-- Extract reusable DOM renderers into `scripts/components/*.js`.
+- Page-specific logic is **partially** moved from `dashboard-app.js` into `scripts/pages/*.js` (e.g. plugin center, config); new work should prefer adding or extending page modules rather than growing the app shell.
+- Extract reusable DOM renderers into `scripts/components/*.js` where repetition appears.
 - Keep behavior parity first; only then consider a framework migration.

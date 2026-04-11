@@ -14,7 +14,8 @@ flowchart TD
   session --> branch{是否@机器人}
   branch -->|是| atFlow[命令或AI回复]
   branch -->|否| passiveFlow[记录上下文后可选插话]
-  atFlow --> aiClient[CodeBuddyClient]
+  atFlow --> personaLayer[人格解析与System组装]
+  personaLayer --> aiClient[CodeBuddyClient]
   aiClient --> sendText[发送文字]
   sendText --> tts[可选追加TTS语音]
   passiveFlow --> astrbot[Astrbot转发或被动AI插话]
@@ -74,10 +75,11 @@ flowchart TD
 2. 再判断是不是模式切换命令、占卜命令、插件命令或屏蔽命令。
 3. 若启用了 Astrbot 复杂任务委托，可能先尝试外部委托。
 4. 获取当前会话历史。
-5. 让插件构建额外的 system prefix。
-6. 调用 `CodeBuddyClient.chat()`。
-7. 保存 AI 回复到会话。
-8. 先发文字，再根据 TTS 开关决定是否异步追加语音。
+5. 按群 `group_id` 解析人格：`PersonaService.resolvePersona`，再与当前模式（群共享 / 个人）叠加自学习产生的 overlay（若有），组装发往模型的 system 侧内容（`buildChatSystemPrompt` 等）；TTS 侧也会使用解析结果中的角色字段。
+6. 让插件通过 `beforeChat` 等钩子构建额外的 system prefix，并拼入最终请求。
+7. 调用 `CodeBuddyClient.chat()`。
+8. 保存 AI 回复到会话。
+9. 先发文字，再根据 TTS 开关决定是否异步追加语音。
 
 ## 非 `@` 消息的处理流程
 

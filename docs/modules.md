@@ -16,7 +16,7 @@ Python FastAPI 语音服务，对主服务暴露统一 HTTP 接口。
 
 ### `data/`
 
-包含语音模型、自学习数据、训练工作区等运行资产。
+包含语音模型、自学习数据、插件中心数据、人格 JSON、训练工作区等运行资产。
 
 ### `scripts/voice-training/`
 
@@ -45,6 +45,8 @@ Dashboard 相关端到端测试和 mock server。
   OpenAI 兼容聊天客户端和基础 system prompt。
 - `session-manager.ts`
   群共享模式与个人模式上下文管理。
+- `persona-service.ts`
+  人格档案、群绑定、与自学习 overlay 合成；默认读写 `data/personas.json`。
 - `dashboard-service.ts`
   Dashboard HTTP 服务、SSE、配置修改、日志读取、静态资源托管。
 - `tts-service.ts`
@@ -56,7 +58,7 @@ Dashboard 相关端到端测试和 mock server。
 - `astrbot-relay.ts`
   Astrbot 命令转发和复杂任务委托。
 - `scheduler-service.ts`
-  定时任务、AI 插聊、活跃群管理。
+  定时任务、AI 插聊、活跃群管理；可注入 `PersonaService`，使插话使用当前群解析出的人格名称与 system prompt。
 - `welcome-service.ts`
   入群欢迎消息。
 - `block-service.ts`
@@ -72,9 +74,21 @@ Dashboard 相关端到端测试和 mock server。
 ### `src/plugins/`
 
 - `plugin-manager.ts`
-  插件注册、初始化、命令路由、Prompt 注入和 Dashboard 路由聚合。
+  插件注册、初始化、命令路由、Prompt 注入、Dashboard 路由聚合、适配器注册与桥接插件装载。
 - `plugin-types.ts`
   插件上下文、命令返回值和 Dashboard 路由的接口定义。
+- `plugin-fs.ts`
+  `data/plugins` 下各子路径解析、JSON 读写；支持 `QQTALKER_PLUGIN_DATA_ROOT` 覆盖数据根。
+- `plugin-registry.ts` / `plugin-installer.ts` / `plugin-config-service.ts`
+  注册表持久化、安装管线、按插件 ID 的 JSON 配置读写。
+- `plugin-adapters.ts` / `plugin-ui-registry.ts`
+  异构包适配器注册表、Dashboard 侧插件 UI 元数据。
+- `astrbot-bridge-adapter.ts`
+  安装阶段识别 AstrBot 形态插件包并生成注册表项。
+- `astrbot-bridge-support.ts`
+  AstrBot 桥接共用的 manifest 构建与检测辅助。
+- `astrbot-generic-bridge.ts` / `astrbot-meme-manager-bridge.ts`
+  运行时装载的桥接插件：通用 AstrBot 包与 `meme_manager` 专用能力。
 - `self-learning/`
   自学习插件、服务层、存储层、高级分析逻辑。
 - `voice-broadcast/`
@@ -125,6 +139,14 @@ Dashboard 相关端到端测试和 mock server。
 ### `data/self-learning/`
 
 自学习默认数据目录，默认 SQLite 文件也在这里。
+
+### `data/plugins/`
+
+插件中心管理的注册表、锁、各插件 `config/`、`packages/`、`runtime/` 等（根目录可被 `QQTALKER_PLUGIN_DATA_ROOT` 改写）。
+
+### `data/personas.json`
+
+人格数据默认文件（可由 `PersonaService` 构造参数覆盖路径）。
 
 ## 测试目录
 

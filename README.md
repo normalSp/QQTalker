@@ -14,6 +14,7 @@ QQTalker 是一个基于 OneBot 的 QQ 机器人项目，主打“可爱猫娘 +
 - 🛰️ 把复杂任务转发给 Astrbot，做多机器人协作
 - 📊 用 Dashboard 看运行状态、日志、自学习数据和配置
 - 🧩 用插件扩展消息钩子、Prompt 注入、群命令和 Dashboard API
+- 🎭 维护多套人格（Persona）：按群绑定基础人设，并与自学习审查叠加层协同，影响对话与 TTS 角色口径（默认数据文件见 [`docs/data-and-plugin.md`](docs/data-and-plugin.md)）
 
 ## 🧱 架构概览
 
@@ -25,6 +26,8 @@ OneBot <-> QQTalker(Node.js) <-> AI API
                               |
                               +-> GPT-SoVITS (:9880) / edge-tts
 ```
+
+同一进程内还会读写本地数据目录：插件平台状态与包体在 `data/plugins/`（也可通过环境变量改根路径，见下文「高级」），人格配置默认在 `data/personas.json`。Dashboard 中的「插件中心」对上述插件做安装、启停与 Schema 配置管理。
 
 更详细的开发者架构说明见 [`docs/architecture.md`](docs/architecture.md)。
 
@@ -330,6 +333,8 @@ QQTalker 自带 Dashboard，可用来查看：
 - 🧠 自学习数据
 - 🔧 运行配置
 - 💻 进程信息
+- 🧩 **插件中心**：安装 / 启停 / 更新 / 卸载插件，编辑带 Schema 的插件配置，查看桥接类插件（如 AstrBot 包）的状态与扩展 API
+- 🎭 **人格**：在配置页维护 Persona 档案与群绑定；持久化默认写入项目根下 `data/personas.json`（路径以代码为准，详见 [`docs/data-and-plugin.md`](docs/data-and-plugin.md)）
 
 默认地址：
 
@@ -412,6 +417,10 @@ npm run test:e2e
 
 - `npm test` 主要验证 Node 侧逻辑
 - `npm run test:e2e` 使用 Playwright + mock dashboard server，适合验证 Dashboard 关键交互，不等同于真实服务全链路联调
+
+### 高级：插件数据目录
+
+若你需要多实例隔离数据、或在自动化测试中使用独立沙箱，可设置环境变量 **`QQTALKER_PLUGIN_DATA_ROOT`** 指向自定义目录（替代默认的 `data/plugins`）。说明见 [`docs/setup-and-run.md`](docs/setup-and-run.md) 与 [`docs/data-and-plugin.md`](docs/data-and-plugin.md)。
 
 ## License
 

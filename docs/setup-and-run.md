@@ -138,6 +138,8 @@ npm start
 
 `npm test` 使用 Vitest，适合验证主服务逻辑。
 
+插件平台相关用例（如 `tests/plugin-platform.spec.ts`）会在独立沙箱下运行：通过环境变量 **`QQTALKER_PLUGIN_DATA_ROOT`** 指向临时目录，避免清空或占用本机默认的 `data/plugins`。日常开发不必设置；编写 CI、多实例或自定义测试夹具时可显式使用该变量。详见 `data-and-plugin.md` 中「插件数据根目录覆盖」。
+
 ### Dashboard E2E
 
 `npm run test:e2e` 使用 Playwright，并通过 `tests/e2e/mock-dashboard-server.cjs` 启动一个 mock server，而不是依赖真实的 OneBot 或真实 Dashboard 后端。
@@ -180,6 +182,12 @@ npm start
 - 检查 `SELF_LEARNING_ENABLED`
 - 检查 `SELF_LEARNING_MIN_MESSAGES`、`SELF_LEARNING_INTERVAL_HOURS`
 - 检查 `data/self-learning/` 是否可写
+
+### 人格不生效或无法保存
+
+- 默认文件为项目根下 `data/personas.json`，确认进程对 `data/` 有写权限。
+- 若手动编辑过 JSON，校验语法是否有效（损坏会导致加载失败或回退异常）。
+- 与自学习审查联动时，确认对应群的 `basePersonaId` 与当前绑定一致（见 `data-and-plugin.md` 人格小节）。
 
 ## 建议的开发流程
 

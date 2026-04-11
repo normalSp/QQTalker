@@ -14,7 +14,15 @@ QQTalker 有两类数据：
 - `data/self-learning/`
 - `data/voice-models/`
 - `data/voice-models/training/`
+- `data/plugins/`（插件中心；根路径可被环境变量覆盖，见下文）
+- `data/personas.json`（人格档案与群绑定，默认路径；真源见 `PersonaService` 构造参数）
 - `日志/`
+
+## 人格数据
+
+- 默认由 `src/services/persona-service.ts` 读写项目根下 `data/personas.json`（首启可自动创建默认人格）。
+- Dashboard 配置页可维护档案与群绑定；与自学习联动时，审查通过的人格 overlay 会由 `SelfLearningService` 提供，再由 `PersonaService` 与基础 profile 合成 `ResolvedPersona`，供 `MessageHandler` 与 Astrbot 转发链路使用。
+- 若文件损坏或不可写，会导致人格加载失败或无法保存；排障时优先检查 JSON 有效性与进程对 `data/` 的写权限。
 
 ## 自学习数据
 
@@ -146,6 +154,12 @@ QQTalker 有两类数据：
 
 外部插件模块导出对象需至少包含 `id`；若目录中提供 `qqtalker.plugin.json` 或 `package.json#qqtalkerPlugin`，则会优先读取 Manifest。
 
+## 插件数据根目录覆盖
+
+- 默认插件数据根为项目下的 `data/plugins/`（由 `src/plugins/plugin-fs.ts` 解析）。
+- 设置环境变量 **`QQTALKER_PLUGIN_DATA_ROOT`** 为绝对或相对路径时，注册表、锁文件、`config/`、`packages/`、`runtime/` 等均相对于该根目录创建，便于多实例并行或测试沙箱隔离。
+- 未设置时行为与旧版一致；变更后需自行迁移原 `data/plugins` 下文件，或从新根重新安装插件。
+
 ## 插件配置
 
 插件配置不再混写进根目录 `.env`。
@@ -179,15 +193,22 @@ QQTalker 有两类数据：
 
 ## 异构插件桥接
 
-`PluginManager` 还引入了适配器层，用于接入非 QQTalker 原生插件生态。
+用于接入非 QQTalker 原生插件生态（当前以 AstrBot 包为主），分三层理解：
 
-第一版内置了 `AstrBotBridgeAdapter`，用于识别包含 `metadata.yaml`、`config.py` 的 AstrBot 插件包，并将其作为“桥接插件”纳入插件中心管理。
+1. **安装适配器 `AstrBotBridgeAdapter`**（`astrbot-bridge-adapter.ts`）  
+   在 `PluginInstaller` 扫描阶段识别 AstrBot 形态目录（如含 `metadata.yaml` 等），生成注册表项与安装产物路径，使插件中心能统一安装、启停与配置。
+
+2. **共享支持 `astrbot-bridge-support.ts`**  
+   供适配器与运行时代码共用的 manifest 构建、能力检测等辅助逻辑，避免各桥接插件重复实现。
+
+3. **运行时桥接插件**（由 `PluginManager` 在加载已安装条目时选择）  
+   - `AstrBotMemeManagerBridgePlugin`：针对 `meme_manager` 等已深度对接的包。  
+   - `AstrBotGenericBridgePlugin`：其他已识别的 AstrBot 包的通用桥接实现。
 
 注意：
 
-- 这类插件当前不会在 QQTalker 进程内直接执行 Python 逻辑
-- 当前阶段主要解决统一安装入口、配置承载和桥接占位
-- 后续可继续补 AstrBot 运行时代理和 WebUI 嵌入
+- 这类插件当前不会在 QQTalker Node 进程内直接执行 AstrBot 的 Python 逻辑；桥接侧主要提供统一入口、配置承载、Dashboard API 及与 QQTalker 消息/Prompt 链路的衔接能力。
+- 后续可继续补 AstrBot 运行时代理和 WebUI 嵌入。
 
 ## 日志与排障数据
 
@@ -205,3 +226,4 @@ QQTalker 有两类数据：
 - 变更自学习数据结构时，优先查看 `self-learning-store.ts`、`self-learning-service.ts` 和 Dashboard 对应接口。
 - 若从 SQLite 切换到 MySQL 或 PostgreSQL，要同时检查连接串、初始化流程和备份方案。
 - 增加插件接口时，要同步更新 `plugin-types.ts` 和 `PluginManager` 的调用点。
+- 变更人格存储路径或字段时，同步检查 `PersonaService`、Dashboard 配置 API 与自学习审查流程。
