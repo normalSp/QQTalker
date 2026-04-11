@@ -14,6 +14,8 @@ export const pageTitles = {
 
 export function switchDashboardPage(page, hooks) {
   if (!page) return;
+  hooks = hooks || {};
+  var skipAnimations = Boolean(hooks.skipAnimations);
   document.querySelectorAll('.nav-item').forEach(function(i) { i.classList.remove('active'); });
   const nav = document.querySelector('[data-page="' + (page === 'pluginview' ? 'plugins' : page) + '"]');
   if (nav) nav.classList.add('active');
@@ -23,26 +25,29 @@ export function switchDashboardPage(page, hooks) {
   var el = document.getElementById('page-' + page);
   if (el) {
     el.classList.add('active');
-    void el.offsetWidth;
-    el.classList.add('entering');
-    var cards = el.querySelectorAll('.card, .stat-card, .analyzer-stat, .config-group');
-    if (cards.length) {
-      gsap.from(cards, {
-        y: 24, opacity: 0, scale: 0.97, duration: 0.45,
-        stagger: { amount: 0.3, grid: 'auto', from: 'start' },
-        ease: 'power3.out', delay: 0.12,
-        clearProps: 'opacity,transform,scale'
-      });
-    }
-    setTimeout(function() {
+    if (!skipAnimations) {
+      void el.offsetWidth;
+      el.classList.add('entering');
+      var cards = el.querySelectorAll('.card, .stat-card, .analyzer-stat, .config-group');
+      if (cards.length) {
+        gsap.from(cards, {
+          y: 24, opacity: 0, scale: 0.97, duration: 0.45,
+          stagger: { amount: 0.3, grid: 'auto', from: 'start' },
+          ease: 'power3.out', delay: 0.12,
+          clearProps: 'opacity,transform,scale'
+        });
+      }
+      setTimeout(function() {
+        el.querySelectorAll('.card').forEach(function(c) { c.classList.add('visible'); });
+      }, 400);
+    } else {
       el.querySelectorAll('.card').forEach(function(c) { c.classList.add('visible'); });
-    }, 400);
+    }
   }
   if (pageTitles[page]) {
     document.getElementById('pageTitle').textContent = pageTitles[page].title;
     document.getElementById('pageBreadcrumb').textContent = pageTitles[page].bc;
   }
-  hooks = hooks || {};
   if (page === 'selflearning' && hooks.onSelfLearning) hooks.onSelfLearning();
   if (page === 'plugins' && hooks.onPlugins) hooks.onPlugins();
   if (page === 'pluginview' && hooks.onPluginView) hooks.onPluginView();

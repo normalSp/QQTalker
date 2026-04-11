@@ -1,10 +1,36 @@
 export async function api(url, opts) {
   try {
     const response = await fetch(url, opts);
-    return response.ok ? await response.json() : {};
+    if (response.ok) {
+      return await response.json();
+    }
+    var contentType = String(response.headers.get('content-type') || '');
+    var errorPayload = {};
+    if (contentType.indexOf('application/json') >= 0) {
+      try {
+        errorPayload = await response.json();
+      } catch (error) {
+        errorPayload = {};
+      }
+    } else {
+      try {
+        var text = await response.text();
+        errorPayload = text ? { error: text } : {};
+      } catch (error) {
+        errorPayload = {};
+      }
+    }
+    return Object.assign({
+      success: false,
+      error: response.status + ' ' + response.statusText,
+      status: response.status,
+    }, errorPayload || {});
   } catch (error) {
     console.warn('API error', error);
-    return {};
+    return {
+      success: false,
+      error: error && error.message ? error.message : 'Network request failed',
+    };
   }
 }
 
@@ -47,6 +73,7 @@ export const dashboardApi = {
   updatePluginConfig: (id, body) => putJson('/api/plugins/' + encodeURIComponent(id) + '/config', body),
   getPluginStatus: (id) => api('/api/plugins/' + encodeURIComponent(id) + '/status'),
   getPluginLogs: (id) => api('/api/plugins/' + encodeURIComponent(id) + '/logs'),
+  getAstrBotBridgeOverview: (id) => api('/api/plugins/' + encodeURIComponent(id) + '/astrbot-bridge/overview'),
   getMemeBridgeOverview: (id) => api('/api/plugins/' + encodeURIComponent(id) + '/meme-manager/overview'),
   getMemeBridgeCategories: (id) => api('/api/plugins/' + encodeURIComponent(id) + '/meme-manager/categories'),
   updateMemeBridgeCategory: (id, body) => postJson('/api/plugins/' + encodeURIComponent(id) + '/meme-manager/categories', body),

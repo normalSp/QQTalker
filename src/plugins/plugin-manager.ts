@@ -3,6 +3,7 @@ import path from 'path';
 import { logger } from '../logger';
 import { config } from '../types/config';
 import { AstrBotBridgeAdapter } from './astrbot-bridge-adapter';
+import { AstrBotGenericBridgePlugin } from './astrbot-generic-bridge';
 import { AstrBotMemeManagerBridgePlugin } from './astrbot-meme-manager-bridge';
 import { PluginAdapterRegistry } from './plugin-adapters';
 import { PluginConfigService } from './plugin-config-service';
@@ -600,8 +601,11 @@ export class PluginManager {
     entry: PluginRegistryEntry,
     manifest: PluginManifest,
   ): QQTalkerPlugin | null {
-    if (entry.adapterType === 'astrbot-bridge' && AstrBotMemeManagerBridgePlugin.supports(sourcePath)) {
-      return new AstrBotMemeManagerBridgePlugin(sourcePath, entry.id, manifest);
+    if (entry.adapterType === 'astrbot-bridge') {
+      if (AstrBotMemeManagerBridgePlugin.supports(sourcePath)) {
+        return new AstrBotMemeManagerBridgePlugin(sourcePath, entry.id, manifest);
+      }
+      return new AstrBotGenericBridgePlugin(sourcePath, entry.id, manifest);
     }
     return null;
   }

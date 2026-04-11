@@ -2,8 +2,15 @@ import fs from 'fs';
 import path from 'path';
 import type http from 'http';
 import {
+  FlatConfig,
+  buildAstrBotConfigSchema,
+  buildAstrBotDefaultConfig,
+  parseAstrBotStringMap,
+  readAstrBotMetadataName,
+  readAstrBotSchema,
+} from './astrbot-bridge-support';
+import {
   DashboardRouteProvider,
-  PluginConfigField,
   PluginConfigSchema,
   PluginContext,
   PluginDashboardPage,
@@ -14,8 +21,6 @@ import {
   PromptHookResult,
   QQTalkerPlugin,
 } from './plugin-types';
-
-type FlatConfig = Record<string, unknown>;
 
 interface CategoryIndex {
   descriptions: Record<string, string>;
@@ -33,15 +38,6 @@ interface BridgeCategoryItem {
   count: number;
   previewFile?: string;
   files: BridgeFileItem[];
-}
-
-interface RawSchemaField {
-  description?: string;
-  type?: string;
-  default?: unknown;
-  hint?: string;
-  options?: string[];
-  items?: Record<string, RawSchemaField>;
 }
 
 function ensureDir(dirPath: string): string {
@@ -65,51 +61,6 @@ function copyDirectoryIfMissing(sourceDir: string, targetDir: string): void {
   }
 }
 
-function flattenSchemaFields(schema: Record<string, RawSchemaField>, prefix = ''): PluginConfigField[] {
-  const fields: PluginConfigField[] = [];
-  for (const [key, field] of Object.entries(schema || {})) {
-    const fieldKey = prefix ? `${prefix}.${key}` : key;
-    const type = field.type || 'string';
-    if (type === 'object' && field.items) {
-      fields.push(...flattenSchemaFields(field.items, fieldKey));
-      continue;
-    }
-    fields.push({
-      key: fieldKey,
-      title: field.description || fieldKey,
-      description: field.hint,
-      type:
-        type === 'bool' ? 'boolean' :
-        type === 'int' ? 'number' :
-        type === 'list' ? 'array' :
-        type === 'object' ? 'map' :
-        type === 'string' && /secret|key|token|password/i.test(fieldKey) ? 'secret' :
-        type === 'string' && /prompt|rule|description|content/i.test(fieldKey) ? 'textarea' :
-        (type as PluginConfigField['type']),
-      defaultValue: field.default as any,
-      enumOptions: field.options?.map(option => ({ label: option, value: option })),
-      secret: /secret|token|password/i.test(fieldKey),
-      multiline: /prompt|rule|description|content/i.test(fieldKey),
-    });
-  }
-  return fields;
-}
-
-function buildDefaultConfig(schema: Record<string, RawSchemaField>, prefix = '', target: FlatConfig = {}): FlatConfig {
-  for (const [key, field] of Object.entries(schema || {})) {
-    const fieldKey = prefix ? `${prefix}.${key}` : key;
-    const type = field.type || 'string';
-    if (type === 'object' && field.items) {
-      buildDefaultConfig(field.items, fieldKey, target);
-      continue;
-    }
-    if (field.default !== undefined) {
-      target[fieldKey] = field.default;
-    }
-  }
-  return target;
-}
-
 function readJson<T>(filePath: string, fallback: T): T {
   try {
     if (!fs.existsSync(filePath)) return fallback;
@@ -126,27 +77,6 @@ function writeJson(filePath: string, data: unknown): void {
 
 function getFlatValue(config: FlatConfig, key: string, fallback?: unknown): unknown {
   return config[key] !== undefined ? config[key] : fallback;
-}
-
-function readMetadataName(sourcePath: string): string {
-  const metadataPath = path.join(sourcePath, 'metadata.yaml');
-  if (!fs.existsSync(metadataPath)) return path.basename(sourcePath);
-  const content = fs.readFileSync(metadataPath, 'utf-8');
-  const match = content.match(/^\s*name:\s*([^\r\n]+)/m);
-  return match ? match[1].trim() : path.basename(sourcePath);
-}
-
-function parseDefaultCategoryDescriptions(configSource: string): Record<string, string> {
-  const match = configSource.match(/DEFAULT_CATEGORY_DESCRIPTIONS\s*=\s*\{([\s\S]*?)\n\}/m);
-  if (!match) return {};
-  const body = match[1];
-  const descriptions: Record<string, string> = {};
-  const regex = /"([^"]+)"\s*:\s*"([^"]*)"/g;
-  let result: RegExpExecArray | null;
-  while ((result = regex.exec(body)) !== null) {
-    descriptions[result[1]] = result[2];
-  }
-  return descriptions;
 }
 
 function randomPick<T>(items: T[]): T | undefined {
@@ -189,21 +119,21 @@ export class AstrBotMemeManagerBridgePlugin implements QQTalkerPlugin {
     this.id = pluginId;
     this.name = manifestOverride?.name || 'AstrBot Meme Manager Bridge';
 
-    const schemaSource = readJson<Record<string, RawSchemaField>>(path.join(sourcePath, '_conf_schema.json'), {});
-    this.configSchema = {
-      title: 'AstrBot Meme Manager Bridge',
-      description: '桥接自 astrbot_plugin_meme_manager 的配置项。',
-      fields: flattenSchemaFields(schemaSource),
-    };
-    this.defaultConfig = buildDefaultConfig(schemaSource);
-    this.defaultDescriptions = parseDefaultCategoryDescriptions(
+    this.configSchema = buildAstrBotConfigSchema(
+      sourcePath,
+      'AstrBot Meme Manager Bridge',
+      '桥接自 astrbot_plugin_meme_manager 的配置项。',
+    );
+    this.defaultConfig = buildAstrBotDefaultConfig(readAstrBotSchema(sourcePath));
+    this.defaultDescriptions = parseAstrBotStringMap(
       fs.existsSync(path.join(sourcePath, 'config.py'))
         ? fs.readFileSync(path.join(sourcePath, 'config.py'), 'utf-8')
         : '',
+      'DEFAULT_CATEGORY_DESCRIPTIONS',
     );
     const baseManifest: PluginManifest = {
       id: pluginId,
-      name: manifestOverride?.name || `AstrBot Bridge: ${readMetadataName(sourcePath)}`,
+      name: manifestOverride?.name || `AstrBot Bridge: ${readAstrBotMetadataName(sourcePath)}`,
       version: manifestOverride?.version || '0.1.0',
       description: manifestOverride?.description || 'QQTalker bridge sample for astrbot_plugin_meme_manager',
       sourceType: 'adapter',
@@ -218,6 +148,8 @@ export class AstrBotMemeManagerBridgePlugin implements QQTalkerPlugin {
       adapter: {
         type: 'astrbot-bridge',
         target: 'meme_manager',
+        fallbackPageId: 'meme-library',
+        nativeEquivalent: true,
       },
     };
     this.manifest = {
@@ -231,6 +163,8 @@ export class AstrBotMemeManagerBridgePlugin implements QQTalkerPlugin {
       adapter: {
         type: manifestOverride?.adapter?.type || baseManifest.adapter!.type,
         target: 'meme_manager',
+        fallbackPageId: manifestOverride?.adapter?.fallbackPageId || baseManifest.adapter!.fallbackPageId,
+        nativeEquivalent: manifestOverride?.adapter?.nativeEquivalent ?? baseManifest.adapter!.nativeEquivalent,
       },
     };
   }
@@ -238,7 +172,7 @@ export class AstrBotMemeManagerBridgePlugin implements QQTalkerPlugin {
   static supports(sourcePath: string): boolean {
     return fs.existsSync(path.join(sourcePath, '_conf_schema.json'))
       && fs.existsSync(path.join(sourcePath, 'metadata.yaml'))
-      && readMetadataName(sourcePath) === 'meme_manager';
+      && readAstrBotMetadataName(sourcePath) === 'meme_manager';
   }
 
   initialize(context: PluginContext): void {
@@ -274,6 +208,8 @@ export class AstrBotMemeManagerBridgePlugin implements QQTalkerPlugin {
         title: '表情桥接资源',
         routePath: `/plugins/${this.id}/page/meme-library`,
         description: '查看桥接后的表情分类、资源数量与访问入口。',
+        renderMode: 'native-equivalent',
+        bridgeEndpoint: `/api/plugins/${this.id}/meme-manager/overview`,
       },
     ];
   }

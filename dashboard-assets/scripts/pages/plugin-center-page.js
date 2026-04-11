@@ -54,6 +54,8 @@ export function createPluginCenterPageController(options) {
   var state = options.state;
   var dashboardApi = options.dashboardApi;
   var toast = options.toast;
+  var navigateToPluginPage = options.navigateToPluginPage || function(routePath) { window.location.href = routePath; };
+  var navigateToPluginsCenter = options.navigateToPluginsCenter || function() { window.location.href = '/#plugins'; };
 
   function isMemeBridgePlugin(detail) {
     return Boolean(
@@ -62,6 +64,15 @@ export function createPluginCenterPageController(options) {
       && detail.manifest.adapter
       && detail.manifest.adapter.type === 'astrbot-bridge'
       && detail.manifest.adapter.target === 'meme_manager'
+    );
+  }
+
+  function isAstrBotBridgePlugin(detail) {
+    return Boolean(
+      detail
+      && detail.manifest
+      && detail.manifest.adapter
+      && detail.manifest.adapter.type === 'astrbot-bridge'
     );
   }
 
@@ -81,6 +92,7 @@ export function createPluginCenterPageController(options) {
     state.plugins.selectedLogs = logsRes && logsRes.logs ? logsRes.logs : [];
     state.plugins.selectedBridgeOverview = null;
     state.plugins.selectedBridgeCategories = [];
+    state.plugins.selectedGenericBridgeOverview = null;
     return state.plugins.selectedDetail;
   }
 
@@ -232,7 +244,7 @@ export function createPluginCenterPageController(options) {
       toast('当前插件没有可进入的页面路由', 'error');
       return;
     }
-    window.location.href = normalizedRoute;
+    navigateToPluginPage(normalizedRoute, pageId, state.plugins.selectedId);
   }
 
   function bindPluginPageActions() {
@@ -280,7 +292,28 @@ export function createPluginCenterPageController(options) {
       var backBtn = document.getElementById('pluginStandaloneBackBtn');
       if (backBtn) {
         backBtn.addEventListener('click', function() {
-          window.location.href = '/#plugins';
+          navigateToPluginsCenter();
+        });
+      }
+      return;
+    }
+    if (isAstrBotBridgePlugin(detail) && (pageId === 'overview' || /\/overview$/.test(routePath))) {
+      var overview = state.plugins.selectedGenericBridgeOverview;
+      container.innerHTML = '<div class="plugin-standalone-shell">'
+        + '<div class="plugin-standalone-head"><div><div class="plugin-hero-title">' + esc(page.title || '桥接概览') + '</div><div class="plugin-hero-desc">' + esc(page.description || '查看当前 AstrBot 插件桥接状态、配置接入情况与包结构。') + '</div></div><div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="save-config-btn secondary" id="pluginStandaloneBackBtn">返回插件中心</button></div></div>'
+        + '<div class="plugin-page-list">'
+        + '<div class="config-group"><div class="config-label">桥接目标</div><div class="plugin-form-help">' + esc((overview && overview.adapterTarget) || (detail.manifest.adapter && detail.manifest.adapter.target) || 'astrbot') + '</div></div>'
+        + '<div class="config-group"><div class="config-label">源码路径</div><div class="plugin-form-help">' + esc((overview && overview.sourcePath) || '') + '</div></div>'
+        + '<div class="config-group"><div class="config-label">配置接入</div><div class="plugin-form-help">' + esc(overview && overview.hasConfigSchema ? ('已解析 ' + overview.configFieldCount + ' 个字段') : '当前未检测到可桥接的配置 schema') + '</div></div>'
+        + '<div class="config-group"><div class="config-label">AstrBot WebUI</div><div class="plugin-form-help">' + esc(overview && overview.hasWebUi ? '检测到 webui.py，但当前方案优先使用 QQTalker 原生等价页面。' : '未检测到 webui.py') + '</div></div>'
+        + '<div class="config-group"><div class="config-label">运行说明</div><div class="plugin-form-help">' + esc((overview && overview.runtimeMessage) || '当前以桥接模式加载。') + '</div></div>'
+        + '<div class="config-group"><div class="config-label">包文件概览</div><div class="plugin-form-help">' + esc(((overview && overview.files) || []).join(', ') || '无') + '</div></div>'
+        + '</div>'
+        + '</div>';
+      var genericBackBtn = document.getElementById('pluginStandaloneBackBtn');
+      if (genericBackBtn) {
+        genericBackBtn.addEventListener('click', function() {
+          navigateToPluginsCenter();
         });
       }
       return;
@@ -292,7 +325,7 @@ export function createPluginCenterPageController(options) {
     var fallbackBackBtn = document.getElementById('pluginStandaloneBackBtn');
     if (fallbackBackBtn) {
       fallbackBackBtn.addEventListener('click', function() {
-        window.location.href = '/#plugins';
+        navigateToPluginsCenter();
       });
     }
   }
@@ -307,7 +340,19 @@ export function createPluginCenterPageController(options) {
       var overviewRes = await dashboardApi.getMemeBridgeOverview(parsed.pluginId);
       var categoriesRes = await dashboardApi.getMemeBridgeCategories(parsed.pluginId);
       state.plugins.selectedBridgeOverview = overviewRes && overviewRes.success ? overviewRes : null;
-      state.plugins.selectedBridgeCategories = categoriesRes && categoriesRes.items ? categoriesRes.items : [];
+      state.plugins.selectedBridgeCategories = categoriesRes && categoriesRes.success && categoriesRes.items ? categoriesRes.items : [];
+      if (!state.plugins.selectedBridgeOverview) {
+        toast((overviewRes && overviewRes.error) || '桥接概览加载失败', 'error');
+      }
+      if (categoriesRes && categoriesRes.success === false) {
+        toast((categoriesRes && categoriesRes.error) || '表情分类加载失败', 'error');
+      }
+    } else if (isAstrBotBridgePlugin(state.plugins.selectedDetail)) {
+      var genericOverviewRes = await dashboardApi.getAstrBotBridgeOverview(parsed.pluginId);
+      state.plugins.selectedGenericBridgeOverview = genericOverviewRes && genericOverviewRes.success ? genericOverviewRes : null;
+      if (genericOverviewRes && genericOverviewRes.success === false) {
+        toast((genericOverviewRes && genericOverviewRes.error) || '桥接概览加载失败', 'error');
+      }
     }
     renderStandalonePluginPage(parsed.pageId, parsed.routePath);
     return true;
@@ -456,7 +501,13 @@ export function createPluginCenterPageController(options) {
     var overviewRes = await dashboardApi.getMemeBridgeOverview(state.plugins.selectedId);
     var categoriesRes = await dashboardApi.getMemeBridgeCategories(state.plugins.selectedId);
     state.plugins.selectedBridgeOverview = overviewRes && overviewRes.success ? overviewRes : null;
-    state.plugins.selectedBridgeCategories = categoriesRes && categoriesRes.items ? categoriesRes.items : [];
+    state.plugins.selectedBridgeCategories = categoriesRes && categoriesRes.success && categoriesRes.items ? categoriesRes.items : [];
+    if (overviewRes && overviewRes.success === false) {
+      toast((overviewRes && overviewRes.error) || '桥接概览加载失败', 'error');
+    }
+    if (categoriesRes && categoriesRes.success === false) {
+      toast((categoriesRes && categoriesRes.error) || '表情分类加载失败', 'error');
+    }
     renderMemeBridgePanel();
   }
 

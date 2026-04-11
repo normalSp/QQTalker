@@ -51,6 +51,7 @@ export const state = {
     selectedLogs: [],
     selectedBridgeOverview: null,
     selectedBridgeCategories: [],
+    selectedGenericBridgeOverview: null,
   },
   navigationFocus: {
     personaGroupId: '',

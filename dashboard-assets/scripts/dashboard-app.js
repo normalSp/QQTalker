@@ -137,19 +137,28 @@ import { createPluginCenterPageController } from './pages/plugin-center-page.js'
 window.addEventListener('load', function() {
   const app = document.getElementById('appLayout');
   if (!app) return;
+  const suppressBootAnimations = Boolean(
+    (window.location.pathname && window.location.pathname.indexOf('/plugins/') === 0)
+    || window.location.hash === '#plugins'
+  );
 
   // First do initial data load, then animate
   refreshAll().then(async function() {
     if (window.location.pathname && window.location.pathname.indexOf('/plugins/') === 0) {
-      var opened = await pluginCenterPage.openPluginPageByPath(window.location.pathname);
-      if (opened) {
-        switchPage('pluginview');
-      }
+      await openPluginSubpage(window.location.pathname);
     } else if (window.location.hash === '#plugins') {
-      switchPage('plugins');
+      await switchPage('plugins');
     }
     // Main app fade in
     gsap.to(app, { opacity: 1, duration: 0.6, ease: 'power2.out' });
+    if (suppressBootAnimations) {
+      document.querySelectorAll('.stat-card, .card').forEach(function(el) {
+        el.classList.add('visible');
+        el.style.opacity = '';
+        el.style.transform = '';
+      });
+      return;
+    }
 
     // Sidebar entrance
     gsap.from('.sidebar', { x: -60, opacity: 0, duration: 0.7, ease: 'power3.out', delay: 0.2 });
@@ -253,6 +262,24 @@ function toast(msg, type) {
   setTimeout(function() { t.style.opacity = '0'; t.style.transform = 'translateX(40px)'; t.style.transition = 'all 0.3s'; setTimeout(function() { t.remove(); }, 300); }, 3000);
 }
 
+async function openPluginSubpage(routePath) {
+  if (!routePath) return false;
+  var opened = await pluginCenterPage.openPluginPageByPath(routePath);
+  if (!opened) return false;
+  if (window.location.pathname !== routePath || window.location.hash) {
+    window.history.pushState({}, '', routePath);
+  }
+  await switchPage('pluginview', { skipAnimations: true });
+  return true;
+}
+
+async function openPluginsCenter() {
+  if (window.location.pathname !== '/' || window.location.hash !== '#plugins') {
+    window.history.pushState({}, '', '/#plugins');
+  }
+  await switchPage('plugins', { skipAnimations: true });
+}
+
 // ========== Navigation with animated transitions ==========
 function syncDashboardLocation(page) {
   if (page === 'pluginview') return;
@@ -267,9 +294,11 @@ function syncDashboardLocation(page) {
   }
 }
 
-function switchPage(page) {
+function switchPage(page, options) {
   syncDashboardLocation(page);
+  options = options || {};
   return switchDashboardPage(page, {
+    skipAnimations: Boolean(options.skipAnimations),
     onSelfLearning: function() { loadSelfLearningPanel(false); },
     onPlugins: function() { pluginCenterPage.loadPlugins(); },
     onPluginView: function() {},
@@ -282,6 +311,18 @@ function switchPage(page) {
 }
 
 bindDashboardNavigation(switchPage);
+
+window.addEventListener('popstate', function() {
+  if (window.location.pathname && window.location.pathname.indexOf('/plugins/') === 0) {
+    void openPluginSubpage(window.location.pathname);
+    return;
+  }
+  if (window.location.hash === '#plugins') {
+    void switchPage('plugins', { skipAnimations: true });
+    return;
+  }
+  void switchPage('dashboard');
+});
 
 // ========== SSE Connection ==========
 function connectSSE() {
@@ -346,6 +387,12 @@ const pluginCenterPage = createPluginCenterPageController({
   state,
   dashboardApi,
   toast,
+  navigateToPluginPage: function(routePath) {
+    void openPluginSubpage(routePath);
+  },
+  navigateToPluginsCenter: function() {
+    void openPluginsCenter();
+  },
 });
 pluginCenterPage.bindInstallForm();
 

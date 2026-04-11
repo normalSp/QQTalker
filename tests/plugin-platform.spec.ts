@@ -13,6 +13,7 @@ const suiteRoot = path.resolve(process.cwd(), 'temp', uniqueId('plugin-platform-
 const pluginDataRoot = path.join(suiteRoot, 'data', 'plugins');
 const suiteTempRoot = path.join(suiteRoot, 'temp');
 const previousPluginDataRoot = process.env.QQTALKER_PLUGIN_DATA_ROOT;
+const tinyPngBuffer = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/6S8AAAAASUVORK5CYII=', 'base64');
 
 function cleanDir(dirPath: string): void {
   fs.rmSync(dirPath, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
@@ -179,7 +180,7 @@ module.exports = {
       '}',
       '',
     ].join('\n'), 'utf-8');
-    fs.writeFileSync(path.join(memesDir, 'sample.png'), 'fake-image', 'utf-8');
+    fs.writeFileSync(path.join(memesDir, 'sample.png'), tinyPngBuffer);
 
     const installResult = await manager.installPlugin({
       source: 'local',
@@ -272,7 +273,7 @@ module.exports = {
       url: new URL('http://127.0.0.1:3180' + uploadRoute!.path),
       body: {
         category: 'happy',
-        files: [{ name: 'extra.png', contentBase64: Buffer.from('filedata').toString('base64') }],
+        files: [{ name: 'extra.png', contentBase64: tinyPngBuffer.toString('base64') }],
       },
     });
     const categoriesAfterUpload = await categoriesRoute!.handler({
@@ -300,7 +301,7 @@ module.exports = {
       url: new URL('http://127.0.0.1:3180' + uploadRoute!.path),
       body: {
         category: 'happy',
-        files: [{ name: 'rename-me.png', contentBase64: Buffer.from('rename').toString('base64') }],
+        files: [{ name: 'rename-me.png', contentBase64: tinyPngBuffer.toString('base64') }],
       },
     });
     await renameRoute!.handler({
@@ -401,7 +402,7 @@ module.exports = {
       max_emotions_per_message: { type: 'int', default: 2, description: 'max count' },
     }, null, 2), 'utf-8');
     fs.writeFileSync(path.join(repoDir, 'config.py'), 'DEFAULT_CATEGORY_DESCRIPTIONS = {\n  "happy": "开心时使用",\n}\n', 'utf-8');
-    fs.writeFileSync(path.join(memesDir, 'sample.png'), 'fake-image', 'utf-8');
+    fs.writeFileSync(path.join(memesDir, 'sample.png'), tinyPngBuffer);
 
     const installResult = await manager.installPlugin({
       source: 'local',
@@ -414,5 +415,59 @@ module.exports = {
     const updated = await manager.updatePlugin(pluginId);
     expect(updated.success).toBe(true);
     expect(manager.listPlugins().some(item => item.id === pluginId)).toBe(true);
+  });
+
+  it('provides a generic overview bridge for non-meme AstrBot plugins', async () => {
+    const manager = new PluginManager();
+    const repoDir = path.join(suiteTempRoot, uniqueId('astrbot-generic'));
+    fs.mkdirSync(repoDir, { recursive: true });
+    fs.writeFileSync(path.join(repoDir, 'metadata.yaml'), [
+      'name: sample_toolkit',
+      'desc: Generic AstrBot toolkit sample',
+      'version: v1.0.0',
+      '',
+    ].join('\n'), 'utf-8');
+    fs.writeFileSync(path.join(repoDir, '_conf_schema.json'), JSON.stringify({
+      api_key: { type: 'string', default: 'demo', description: 'API Key' },
+      enable_feature: { type: 'bool', default: true, description: 'Enable feature' },
+    }, null, 2), 'utf-8');
+    fs.writeFileSync(path.join(repoDir, 'config.py'), 'DEFAULT_ENABLED = True\n', 'utf-8');
+    fs.writeFileSync(path.join(repoDir, 'webui.py'), '# web ui marker\n', 'utf-8');
+
+    const installResult = await manager.installPlugin({
+      source: 'local',
+      locator: repoDir,
+      enable: true,
+    });
+    expect(installResult.success).toBe(true);
+
+    await manager.initialize({
+      onebot: {
+        sendGroupMsg: async () => ({}) as any,
+        sendPrivateMsg: async () => ({}) as any,
+      } as any,
+      aiClient: {} as any,
+      sessions: {} as any,
+      dashboard: {
+        pushLog() {},
+        getBaseUrl() { return 'http://127.0.0.1:3180'; },
+      } as any,
+      personas: {} as any,
+      dataDir: process.cwd(),
+    });
+
+    const detail = manager.getPluginDetail('astrbot-sample_toolkit');
+    expect(detail?.manifest.adapter?.target).toBe('sample_toolkit');
+    expect(detail?.configSchema?.fields.length).toBeGreaterThan(0);
+    const overviewRoute = manager.getDashboardRoutes().find(route => route.path === '/api/plugins/astrbot-sample_toolkit/astrbot-bridge/overview');
+    expect(overviewRoute).toBeTruthy();
+    const overviewResponse = await overviewRoute!.handler({
+      req: {} as any,
+      res: {} as any,
+      url: new URL('http://127.0.0.1:3180/api/plugins/astrbot-sample_toolkit/astrbot-bridge/overview'),
+      body: {},
+    });
+    expect((overviewResponse as any).data.hasWebUi).toBe(true);
+    expect((overviewResponse as any).data.adapterTarget).toBe('sample_toolkit');
   });
 });

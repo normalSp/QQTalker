@@ -12,6 +12,7 @@ export type PluginSourceType = 'builtin' | 'local' | 'npm' | 'git' | 'adapter';
 export type PluginRuntimeMode = 'in-process' | 'bridge' | 'process';
 export type PluginRuntimeStatus = 'inactive' | 'starting' | 'healthy' | 'degraded' | 'disabled' | 'error';
 export type PluginUiMode = 'none' | 'schema' | 'bundle' | 'hybrid';
+export type PluginPageRenderMode = 'native-equivalent' | 'bridge-fallback' | 'embedded';
 export type PluginPermission =
   | 'message.read'
   | 'message.send'
@@ -142,6 +143,8 @@ export interface PluginDashboardPage {
   routePath: string;
   icon?: string;
   description?: string;
+  renderMode?: PluginPageRenderMode;
+  bridgeEndpoint?: string;
 }
 
 export interface PluginUiManifest {
@@ -201,6 +204,8 @@ export interface PluginManifest {
   adapter?: {
     type: string;
     target?: string;
+    fallbackPageId?: string;
+    nativeEquivalent?: boolean;
   };
 }
 
