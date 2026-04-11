@@ -1,7 +1,13 @@
 import fs from 'fs';
 import path from 'path';
 
-const PLUGIN_DATA_ROOT = path.resolve(process.cwd(), 'data/plugins');
+function resolvePluginDataRoot(): string {
+  const overrideRoot = String(process.env.QQTALKER_PLUGIN_DATA_ROOT || '').trim();
+  if (overrideRoot) {
+    return path.resolve(overrideRoot);
+  }
+  return path.resolve(process.cwd(), 'data/plugins');
+}
 
 export function ensureDirectory(dirPath: string): string {
   fs.mkdirSync(dirPath, { recursive: true });
@@ -9,7 +15,7 @@ export function ensureDirectory(dirPath: string): string {
 }
 
 export function getPluginDataRoot(): string {
-  return ensureDirectory(PLUGIN_DATA_ROOT);
+  return ensureDirectory(resolvePluginDataRoot());
 }
 
 export function getPluginRegistryPath(): string {

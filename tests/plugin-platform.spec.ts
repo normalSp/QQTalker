@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { PluginConfigService } from '../src/plugins/plugin-config-service';
 import { PluginManager } from '../src/plugins/plugin-manager';
 import { PluginRegistry } from '../src/plugins/plugin-registry';
@@ -9,11 +9,34 @@ function uniqueId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+const suiteRoot = path.resolve(process.cwd(), 'temp', uniqueId('plugin-platform-suite'));
+const pluginDataRoot = path.join(suiteRoot, 'data', 'plugins');
+const suiteTempRoot = path.join(suiteRoot, 'temp');
+const previousPluginDataRoot = process.env.QQTALKER_PLUGIN_DATA_ROOT;
+
+function cleanDir(dirPath: string): void {
+  fs.rmSync(dirPath, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+}
+
 describe('plugin platform services', () => {
+  beforeAll(() => {
+    process.env.QQTALKER_PLUGIN_DATA_ROOT = pluginDataRoot;
+  });
+
+  afterAll(() => {
+    if (previousPluginDataRoot === undefined) {
+      delete process.env.QQTALKER_PLUGIN_DATA_ROOT;
+    } else {
+      process.env.QQTALKER_PLUGIN_DATA_ROOT = previousPluginDataRoot;
+    }
+    cleanDir(suiteRoot);
+  });
+
   beforeEach(() => {
-    fs.rmSync(path.resolve(process.cwd(), 'data/plugins'), { recursive: true, force: true });
-    fs.rmSync(path.resolve(process.cwd(), 'temp'), { recursive: true, force: true });
-    fs.mkdirSync(path.resolve(process.cwd(), 'data/plugins'), { recursive: true });
+    cleanDir(pluginDataRoot);
+    cleanDir(suiteTempRoot);
+    fs.mkdirSync(pluginDataRoot, { recursive: true });
+    fs.mkdirSync(suiteTempRoot, { recursive: true });
   });
 
   it('reads and writes plugin-scoped config', () => {
@@ -58,7 +81,7 @@ describe('plugin platform services', () => {
   it('installs a local plugin and exposes schema/config metadata', async () => {
     const manager = new PluginManager();
     const pluginId = uniqueId('temp-plugin');
-    const tempDir = path.resolve(process.cwd(), 'temp', pluginId);
+    const tempDir = path.join(suiteTempRoot, pluginId);
     const pluginFile = path.join(tempDir, 'index.js');
     fs.mkdirSync(tempDir, { recursive: true });
     fs.writeFileSync(pluginFile, `
@@ -122,7 +145,7 @@ module.exports = {
   it('bridges a local astrbot meme manager package into a usable plugin sample', async () => {
     const manager = new PluginManager();
     const pluginId = uniqueId('astrbot-meme');
-    const repoDir = path.resolve(process.cwd(), 'temp', pluginId);
+    const repoDir = path.join(suiteTempRoot, pluginId);
     const memesDir = path.join(repoDir, 'memes', 'happy');
     fs.mkdirSync(memesDir, { recursive: true });
     fs.writeFileSync(path.join(repoDir, 'metadata.yaml'), [
@@ -365,7 +388,7 @@ module.exports = {
 
   it('updates adapter plugins using their original upstream source', async () => {
     const manager = new PluginManager();
-    const repoDir = path.resolve(process.cwd(), 'temp', uniqueId('adapter-update'));
+    const repoDir = path.join(suiteTempRoot, uniqueId('adapter-update'));
     const memesDir = path.join(repoDir, 'memes', 'happy');
     fs.mkdirSync(memesDir, { recursive: true });
     fs.writeFileSync(path.join(repoDir, 'metadata.yaml'), [
